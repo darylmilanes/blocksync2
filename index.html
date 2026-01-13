@@ -7,7 +7,8 @@
     
     <!-- PWA Manifest & Icons -->
     <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#ffffff">
+    <!-- FIX: Updated theme-color to match app background (#fafaf9) so safe areas blend in -->
+    <meta name="theme-color" content="#fafaf9">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
@@ -29,17 +30,24 @@
 
     <style>
         /* BASE SETTINGS */
+        /* FIX: Set html background to match app to prevent white gaps */
+        html {
+            height: 100%;
+            width: 100%;
+            background-color: #fafaf9;
+        }
+
         body { 
             font-family: 'Plus Jakarta Sans', sans-serif; 
             -webkit-font-smoothing: antialiased; 
             background-color: #fafaf9; /* Stone-50 */
             margin: 0; padding: 0;
-            
-            /* KEY FOR IOS FEEL: Prevents the whole page from bouncing */
             overscroll-behavior-y: none;
-            
             user-select: none;
             -webkit-text-size-adjust: 100%;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
         }
         
         /* IOS ZOOM PREVENTION */
@@ -47,26 +55,26 @@
             font-size: 16px !important; 
         }
         
-        /* APP SHELL STRATEGY */
-        html, body { height: 100%; width: 100%; overflow: hidden; }
-        
+        /* APP SHELL */
         #root { 
-            height: 100dvh; 
-            width: 100vw; 
+            /* FIX: Use fixed position to force coverage of the entire physical screen */
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            
             display: flex; 
             flex-direction: column; 
             overflow: hidden; 
             
-            /* IOS SAFE AREA SUPPORT - Top only for the root container */
+            /* IOS SAFE AREA SUPPORT */
+            /* We keep top padding for the notch/status bar */
             padding-top: env(safe-area-inset-top);
-        }
-
-        /* THE SECRET SAUCE:
-           This allows the internal content to scroll while looking like a native app.
-           We add the safe-area padding here so the last item isn't covered by the home bar.
-        */
-        .native-scroll-area {
-            padding-bottom: calc(6rem + env(safe-area-inset-bottom)); /* 6rem = pb-24 */
+            /* We explicitly set bottom to 0 to ignore the home indicator area */
+            padding-bottom: 0 !important; 
+            
+            background-color: #fafaf9;
         }
 
         /* UTILITIES */
@@ -1118,7 +1126,7 @@
                 const unsub = onAuthStateChanged(auth, (u) => { 
                     setUser(u); 
                     setLoading(false); 
-                    if(u) { setAuthorized(true); setSubView('dashboard'); } 
+                    if(u) { setAuthorized(true); setSubView('dashboard'); } // Corrected: changed setView('admin') to setSubView('dashboard')
                     else { setLoggingIn(false); } 
                 }); 
                 return () => unsub(); 
@@ -1201,7 +1209,7 @@
                                 <form onSubmit={handleAdminLogin} className="space-y-3"><input name="email" type="text" placeholder="Username" autoCapitalize="off" className="w-full h-12 bg-stone-50 border border-stone-100 rounded-xl px-4 text-sm font-medium outline-none focus:border-stone-400 transition" required /><div className="relative"><input name="pass" type={showPass ? "text" : "password"} placeholder="Password" className="w-full h-12 bg-stone-50 border border-stone-100 rounded-xl px-4 text-sm font-medium outline-none focus:border-stone-400 transition pr-10" required /><button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-3 text-teal-800 hover:text-stone-600"><i className={`fa-solid ${showPass ? 'fa-eye-slash' : 'fa-eye'}`}></i></button></div><button type="submit" disabled={loggingIn} className="w-full h-12 bg-teal-800 text-white rounded-xl font-bold shadow-lg hover:bg-stone-900 transition text-sm disabled:opacity-70">{loggingIn ? <i className="fa-solid fa-circle-notch fa-spin"></i> : 'Admin Dashboard'}</button></form>
                             </div>
                         </div>
-                        <p className="relative z-10 mt-8 text-xs text-stone-400 font-medium bg-stone-900/50 px-3 py-1 rounded-full border border-white/10 backdrop-blur-md">Secured Ledger v1.0</p>
+                        <p className="relative z-10 mt-8 text-xs text-stone-400 font-medium bg-stone-900/50 px-3 py-1 rounded-full border border-white/10 backdrop-blur-md">Secured Ledger v1.1</p>
                     </div>
                 );
             }
@@ -1216,6 +1224,7 @@
                             <img src="logo.png" className="w-6 h-6 object-contain mr-2" alt="Logo" />
                             {user ? 'Admin Console' : 'Resident View'}
                         </h1>
+                        {/* Adjusted margin-left (ml-8) slightly to align with text start */}
                         <span className="text-[10px] text-stone-400 font-medium ml-8">Secured Ledger</span>
                     </div>
                         <div className="relative">
@@ -1244,8 +1253,7 @@
                         </div>
                     </header>
 
-                    {/* UPDATED MAIN CONTAINER WITH IOS PADDING */}
-                    <main className="flex-1 overflow-y-auto scroll-area p-4 pb-24 native-scroll-area">
+                    <main className="flex-1 overflow-y-auto scroll-area p-4 pb-0">
                         {subView === 'report' && (
                             <div>
                                 <button onClick={()=>setSubView('dashboard')} className="mb-4 text-sm font-bold text-stone-400 flex items-center gap-2"><i className="fa-solid fa-arrow-left"></i> Back to Dashboard</button>

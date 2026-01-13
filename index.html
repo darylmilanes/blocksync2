@@ -7,6 +7,7 @@
     
     <!-- PWA Manifest & Icons -->
     <link rel="manifest" href="./manifest.json">
+    <!-- FIX: Updated theme-color to match app background (#fafaf9) so safe areas blend in -->
     <meta name="theme-color" content="#fafaf9">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -29,6 +30,7 @@
 
     <style>
         /* BASE SETTINGS */
+        /* FIX: Set html background to match app to prevent white gaps */
         html {
             height: 100%;
             width: 100%;
@@ -38,7 +40,7 @@
         body { 
             font-family: 'Plus Jakarta Sans', sans-serif; 
             -webkit-font-smoothing: antialiased; 
-            background-color: #fafaf9;
+            background-color: #fafaf9; /* Stone-50 */
             margin: 0; padding: 0;
             overscroll-behavior-y: none;
             user-select: none;
@@ -48,20 +50,31 @@
             overflow: hidden;
         }
         
-        input, select, textarea, button { font-size: 16px !important; }
+        /* IOS ZOOM PREVENTION */
+        input, select, textarea, button {
+            font-size: 16px !important; 
+        }
         
         /* APP SHELL */
         #root { 
+            /* FIX: Use fixed position to force coverage of the entire physical screen */
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
+            
             display: flex; 
             flex-direction: column; 
             overflow: hidden; 
+            
+            /* IOS SAFE AREA SUPPORT */
+            /* We keep top padding for the notch/status bar */
+            padding-top: env(safe-area-inset-top);
+            /* We explicitly set bottom to 0 to ignore the home indicator area */
+            padding-bottom: 0 !important; 
+            
             background-color: #fafaf9;
-            /* Removed root padding to allow full-screen backgrounds. Padding applied to children. */
         }
 
         /* UTILITIES */
@@ -70,10 +83,15 @@
         
         /* HIDE NUMBER SPINNERS */
         input[type=number]::-webkit-inner-spin-button, 
-        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        input[type=number] { -moz-appearance: textfield; }
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
 
-        /* ANIMATIONS */
+        /* CUSTOM ANIMATIONS */
         @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -83,10 +101,20 @@
         .animate-scale-in { animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
         /* Toggle Switch */
-        .toggle-checkbox:checked { right: 0; border-color: #0d9488; }
-        .toggle-checkbox:checked + .toggle-label { background-color: #0d9488; }
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #0d9488;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #0d9488;
+        }
         
-        .void-row { opacity: 0.5; background-color: #f5f5f4; text-decoration: line-through; }
+        /* VOID STYLING */
+        .void-row {
+            opacity: 0.5;
+            background-color: #f5f5f4;
+            text-decoration: line-through;
+        }
     </style>
     <script>
         tailwind.config = {
@@ -157,7 +185,7 @@
             const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
             const colors = { success: 'bg-teal-600', error: 'bg-red-500', warning: 'bg-orange-500', info: 'bg-stone-800' };
             return (
-                <div className="fixed top-6 left-0 right-0 z-[100] flex justify-center px-4 pointer-events-none pt-[env(safe-area-inset-top)]">
+                <div className="fixed top-6 left-0 right-0 z-[100] flex justify-center px-4 pointer-events-none">
                     <div className={`${colors[type]} text-white px-5 py-3 rounded-full shadow-lg shadow-black/10 flex items-center gap-3 animate-scale-in pointer-events-auto`}>
                         <i className={`fa-solid ${icons[type]}`}></i>
                         <span className="font-semibold text-sm">{message}</span>
@@ -319,8 +347,9 @@
                 
                 const snap = await onSnapshot(q, (snapshot) => {
                     const docs = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+                    // Client-side sort to avoid complex index
                     const payments = docs.sort((a,b) => b.datePaid.seconds - a.datePaid.seconds);
-                    setHistory(payments.slice(0, 5)); 
+                    setHistory(payments.slice(0, 5)); // Show top 5
                     setLoading(false);
                 }, () => { setLoading(false); });
             };
@@ -352,6 +381,7 @@
                 );
             }
             
+            // If search performed but no data
             if(loading === false && searched && history.length === 0) {
                  return (
                     <div className="animate-scale-in text-center p-8 bg-white rounded-3xl shadow-soft">
@@ -459,7 +489,7 @@
                 return () => unsub();
             }, []);
 
-            // 2. Fetch Balances
+            // 2. Fetch Balances for ALL categories (for disabled state dropdown)
             React.useEffect(() => {
                 if(mode !== 'expense') return;
                 
@@ -521,7 +551,12 @@
                 const start = new Date(y, m - 1, 1);
                 const end = new Date(y, m, 0, 23, 59, 59);
 
-                const q = query(collection(db, "payments"), where("category", "==", category), where("status", "==", "verified"));
+                // Use simple query without ranges to avoid index errors, filter in client
+                const q = query(
+                    collection(db, "payments"),
+                    where("category", "==", category),
+                    where("status", "==", "verified")
+                );
 
                 const unsub = onSnapshot(q, (snap) => {
                     const paid = [];
@@ -571,7 +606,12 @@
                 return Array.from({length: max}, (_, i) => {
                     const val = (i+1).toString();
                     const isPaid = paidUnits.includes(`${block}-${val}`);
-                    return { value: val, label: `Lot ${val}`, disabled: isPaid, disabledLabel: 'PAID' };
+                    return { 
+                        value: val, 
+                        label: `Lot ${val}`,
+                        disabled: isPaid,
+                        disabledLabel: 'PAID'
+                    };
                 });
             }, [block, paidUnits]);
 
@@ -583,7 +623,10 @@
 
             const expenseOptions = React.useMemo(() => {
                 return fundSources.map(c => ({
-                    value: c, label: c, disabled: (categoryBalances[c] || 0) <= 0, disabledLabel: '0.00'
+                    value: c,
+                    label: c,
+                    disabled: (categoryBalances[c] || 0) <= 0,
+                    disabledLabel: '0.00'
                 }));
             }, [fundSources, categoryBalances]);
 
@@ -637,7 +680,9 @@
                         if (isOverBudget) throw new Error("Insufficient funds (Global)");
                         
                         const totalExpense = baseAmount * qty; 
+                        
                         const bal = categoryBalances[fundSource] || 0;
+                        
                         let amountFromOps = 0;
                         let amountFromRes = 0;
 
@@ -649,12 +694,24 @@
                         }
 
                         await addDoc(collection(db, "expenses"), {
-                            title: expTitle, category: fundSource, qty: parseInt(qty), unitAmount: baseAmount, amount: totalExpense, amountFromOps, amountFromRes, date: timestamp, status: 'verified', recordedBy: auth.currentUser.uid, fundSource: amountFromRes > 0 ? 'split' : 'ops'
+                            title: expTitle,
+                            category: fundSource,
+                            qty: parseInt(qty),
+                            unitAmount: baseAmount,
+                            amount: totalExpense,
+                            amountFromOps,
+                            amountFromRes,
+                            date: timestamp,
+                            status: 'verified',
+                            recordedBy: auth.currentUser.uid,
+                            fundSource: amountFromRes > 0 ? 'split' : 'ops'
                         });
                         
                         const msg = amountFromRes > 0 ? `Deficit covered: ₱${formatMoney(amountFromRes)} from Sinking Fund` : "Expense Recorded";
                         showToast(msg, amountFromRes > 0 ? "warning" : "success");
-                        setExpTitle(""); setQty(1); setFundSource(""); 
+                        setExpTitle("");
+                        setQty(1);
+                        setFundSource(""); 
                     }
                     if(!isBatch) setAmount("");
                 } catch (err) { showToast(err.message || "Error saving", "error"); }
@@ -687,7 +744,9 @@
                                                 <label htmlFor="toggle" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer transition-colors ${isBatch ? 'bg-teal-500' : 'bg-stone-200'}`}></label>
                                             </div>
                                         </div>
+                                        
                                         <CustomSelect label="Fund Source" value={category} onChange={setCategory} options={fundSources.map(c=>({value:c,label:c}))} placeholder="Select Fund Source" />
+
                                         {isBatch ? (
                                             <div className="space-y-3">
                                                 <CustomSelect label="Block" value={block} onChange={(v)=>{setBlock(v); setSelectedLots([])}} options={Object.keys(SUBDIVISION_MAP).map(k=>({value:k, label:`Blk ${k}`}))} />
@@ -700,7 +759,16 @@
                                                                 const isSel = selectedLots.includes(n.toString());
                                                                 const isPaid = paidUnits.includes(`${block}-${n}`);
                                                                 return (
-                                                                    <button key={n} onClick={()=>toggleBatchLot(n)} disabled={isPaid} className={`h-8 w-full rounded text-xs font-bold transition flex items-center justify-center ${isPaid ? 'bg-stone-200 text-stone-400 cursor-not-allowed opacity-50' : isSel ? 'bg-teal-500 text-white shadow-md' : 'bg-white text-stone-400 border border-stone-100'}`}>{n}</button>
+                                                                    <button 
+                                                                        key={n} 
+                                                                        onClick={()=>toggleBatchLot(n)} 
+                                                                        disabled={isPaid}
+                                                                        className={`h-8 w-full rounded text-xs font-bold transition flex items-center justify-center 
+                                                                            ${isPaid ? 'bg-stone-200 text-stone-400 cursor-not-allowed opacity-50' : 
+                                                                              isSel ? 'bg-teal-500 text-white shadow-md' : 'bg-white text-stone-400 border border-stone-100'}`}
+                                                                    >
+                                                                        {n}
+                                                                    </button>
                                                                 )
                                                             })}
                                                         </div>
@@ -725,7 +793,9 @@
                                             {fundSource && (
                                                 <div className="text-right mt-1">
                                                     <span className="text-[10px] uppercase font-bold text-stone-400">Available: </span>
-                                                    <span className={`text-xs font-bold ${fundBalance < 0 ? 'text-red-500' : 'text-teal-600'}`}>{fundBalance !== null ? formatMoney(fundBalance) : '...'}</span>
+                                                    <span className={`text-xs font-bold ${fundBalance < 0 ? 'text-red-500' : 'text-teal-600'}`}>
+                                                        {fundBalance !== null ? formatMoney(fundBalance) : '...'}
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>
@@ -824,18 +894,219 @@
             );
         };
 
-        const BottomNav = ({ current, setView }) => (
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-100 flex justify-around items-center pb-[env(safe-area-inset-bottom)] z-30 shadow-[0_-4px_20px_-2px_rgba(0,0,0,0.05)]">
-                <button onClick={() => setView('dashboard')} className={`flex-1 py-3 flex flex-col items-center gap-1 active:scale-95 transition ${current === 'dashboard' ? 'text-teal-600' : 'text-stone-400'}`}>
-                    <i className="fa-solid fa-chart-pie text-lg"></i>
-                    <span className="text-[10px] font-bold">Dashboard</span>
-                </button>
-                <button onClick={() => setView('report')} className={`flex-1 py-3 flex flex-col items-center gap-1 active:scale-95 transition ${current === 'report' ? 'text-teal-600' : 'text-stone-400'}`}>
-                    <i className="fa-solid fa-file-invoice-dollar text-lg"></i>
-                    <span className="text-[10px] font-bold">Budget Report</span>
-                </button>
-            </div>
-        );
+        const BudgetReport = ({ showToast, isAdmin }) => {
+            const [month, setMonth] = React.useState(new Date().toISOString().slice(0, 7));
+            const [report, setReport] = React.useState([]);
+            const [loading, setLoading] = React.useState(true);
+            const [isClosed, setIsClosed] = React.useState(false);
+            const [confirmCloseStage, setConfirmCloseStage] = React.useState(0); 
+            const [password, setPassword] = React.useState("");
+            const [closing, setClosing] = React.useState(false);
+
+            const fetchReport = React.useCallback(async () => {
+                setLoading(true);
+                const closeSnap = await getDoc(doc(db, "closed_months", month));
+                setIsClosed(closeSnap.exists());
+
+                const pSnap = await getDocs(query(collection(db, "payments"), where("status", "==", "verified")));
+                const eSnap = await getDocs(query(collection(db, "expenses"), where("status", "==", "verified")));
+                
+                const data = {};
+
+                pSnap.forEach(d => {
+                    const p = d.data();
+                    const cat = p.category || 'Uncategorized';
+                    if(!data[cat]) data[cat] = { collected: 0, spent: 0, balance: 0, sfUsed: 0, sfIn: 0, expenses: [] };
+                    
+                    const pMonth = p.datePaid.toDate().toISOString().slice(0, 7);
+                    if (pMonth === month) {
+                        data[cat].collected += (p.amountOps || 0);
+                        data[cat].sfIn += (p.amountRes || 0);
+                    }
+                    data[cat].balance += (p.amountOps || 0);
+                });
+
+                eSnap.forEach(d => {
+                    const e = d.data();
+                    const cat = e.category || 'Uncategorized';
+                    if(!data[cat]) data[cat] = { collected: 0, spent: 0, balance: 0, sfUsed: 0, sfIn: 0, expenses: [] };
+                    
+                    const eMonth = e.date.toDate().toISOString().slice(0, 7);
+                    if (eMonth === month) {
+                        data[cat].spent += (e.amount || 0); 
+                        data[cat].sfUsed += (e.amountFromRes || 0); 
+                        // Add specific expense details to array for individual accounting
+                        data[cat].expenses.push({
+                            title: e.title,
+                            qty: e.qty || 1,
+                            amount: e.amount,
+                            fundSource: e.fundSource
+                        });
+                    }
+                    data[cat].balance -= (e.amountFromOps || 0);
+                });
+
+                setReport(Object.entries(data).map(([k,v]) => ({category: k, ...v})));
+                setLoading(false);
+            }, [month]);
+
+            React.useEffect(() => { fetchReport(); }, [fetchReport]);
+
+            const executeClose = async (e) => {
+                e.preventDefault();
+                setClosing(true);
+                try {
+                    // Re-authenticate to confirm password
+                    const credential = EmailAuthProvider.credential(auth.currentUser.email, password);
+                    await reauthenticateWithCredential(auth.currentUser, credential);
+                    
+                    // If successful, proceed to close
+                    await setDoc(doc(db, "closed_months", month), { closedAt: Timestamp.now(), closedBy: auth.currentUser.uid });
+                    setIsClosed(true);
+                    setConfirmCloseStage(0);
+                    setPassword("");
+                    showToast("Month Closed Successfully", "success");
+                } catch(e) { 
+                    console.error(e);
+                    showToast(e.code === 'auth/invalid-credential' ? "Incorrect Password" : "Error closing month", "error"); 
+                } finally {
+                    setClosing(false);
+                }
+            };
+
+            const ModalContent = () => {
+                switch(confirmCloseStage) {
+                    case 1: // Initial Warning
+                        return (
+                             <div className="p-6 text-center">
+                                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4"><i className="fa-solid fa-question text-3xl text-orange-500"></i></div>
+                                <h3 className="font-bold text-lg mb-2 text-stone-800">Close {month}?</h3>
+                                <p className="text-stone-500 text-sm mb-6">Are you sure you want to finalize the budget report for this month?</p>
+                                <button onClick={() => setConfirmCloseStage(2)} className="w-full py-4 bg-stone-800 text-white rounded-xl font-bold">Yes, Proceed</button>
+                            </div>
+                        );
+                    case 2: // Educational / Logic Explanation
+                        return (
+                             <div className="p-6 text-center">
+                                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4"><i className="fa-solid fa-info text-3xl text-blue-500"></i></div>
+                                <h3 className="font-bold text-lg mb-2 text-stone-800">How this works</h3>
+                                <p className="text-stone-500 text-sm mb-4 text-left p-3 bg-stone-50 rounded-xl">
+                                    Closing <strong>{month}</strong> locks records <u>only</u> for this specific month. 
+                                    <br/><br/>
+                                    <strong>Future months remain open.</strong> When the date changes to next month (or if you manually select a future date), the system will automatically allow new entries.
+                                </p>
+                                <button onClick={() => setConfirmCloseStage(3)} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200">I Understand</button>
+                            </div>
+                        );
+                    case 3: // Final Warning
+                        return (
+                             <div className="p-6 text-center">
+                                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><i className="fa-solid fa-triangle-exclamation text-3xl text-red-500"></i></div>
+                                <h3 className="font-bold text-lg mb-2 text-stone-800">Final Warning</h3>
+                                <p className="text-stone-500 text-sm mb-6">This action is <b>IRREVERSIBLE</b>. You cannot re-open this month once closed.</p>
+                                <button onClick={() => setConfirmCloseStage(4)} className="w-full py-4 bg-red-500 text-white rounded-xl font-bold shadow-lg shadow-red-200">Continue</button>
+                            </div>
+                        );
+                    case 4: // Password Protection
+                        return (
+                             <div className="p-6 text-center">
+                                <div className="w-16 h-16 bg-stone-800 rounded-full flex items-center justify-center mx-auto mb-4"><i className="fa-solid fa-lock text-3xl text-white"></i></div>
+                                <h3 className="font-bold text-lg mb-2 text-stone-800">Security Check</h3>
+                                <p className="text-stone-500 text-sm mb-4">Enter your admin password to confirm.</p>
+                                <form onSubmit={executeClose}>
+                                    <input 
+                                        type="password" 
+                                        value={password} 
+                                        onChange={e => setPassword(e.target.value)} 
+                                        placeholder="Admin Password" 
+                                        className="w-full h-12 bg-stone-100 rounded-xl px-4 font-bold text-center outline-none focus:ring-2 focus:ring-stone-500 mb-4"
+                                        autoFocus
+                                    />
+                                    <button type="submit" disabled={!password || closing} className="w-full py-4 bg-stone-800 text-white rounded-xl font-bold disabled:opacity-50">
+                                        {closing ? <i className="fa-solid fa-circle-notch fa-spin"></i> : "CONFIRM CLOSE"}
+                                    </button>
+                                </form>
+                            </div>
+                        );
+                    default: return null;
+                }
+            };
+
+            return (
+                <div className="space-y-4 animate-fade-in">
+                    {confirmCloseStage > 0 && (
+                        <Modal title={confirmCloseStage === 4 ? "Security" : "Confirm Closing"} onClose={() => {setConfirmCloseStage(0); setPassword("");}}>
+                            <ModalContent />
+                        </Modal>
+                    )}
+
+                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-stone-800">Budget Report</h3>
+                            {isClosed && <span className="bg-red-100 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded"><i className="fa-solid fa-lock mr-1"></i>CLOSED</span>}
+                        </div>
+                        <input type="month" value={month} onChange={e=>setMonth(e.target.value)} className="bg-stone-100 rounded-lg px-2 py-1 text-xs font-bold text-stone-600 outline-none" />
+                    </div>
+                    
+                    <div className="space-y-3">
+                        {loading ? <div className="p-8 text-center text-stone-300"><i className="fa-solid fa-circle-notch fa-spin"></i></div> : report.length === 0 ? <div className="p-8 text-center text-sm text-stone-400">No data available</div> : 
+                            report.map((r,i) => (
+                                <div key={i} className="p-4 bg-white rounded-2xl shadow-soft border border-stone-50">
+                                    <div className="flex justify-between items-center mb-3 pb-2 border-b border-stone-50">
+                                        <span className="font-bold text-stone-700 text-sm">{r.category}</span>
+                                        <span className="text-[10px] font-bold bg-stone-100 text-stone-500 px-2 py-1 rounded">Bal: {formatMoney(r.balance)}</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3 text-xs mb-3">
+                                        <div className="bg-stone-50 p-2 rounded-lg">
+                                            <div className="font-bold text-stone-400 mb-1 uppercase text-[9px] flex items-center">
+                                                <i className="fa-solid fa-money-bill-wave mr-1.5"></i> Operations
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-teal-600 font-medium">+{r.collected > 0 ? formatMoney(r.collected) : '0'}</span>
+                                                <span className="text-orange-500 font-medium">-{r.spent > 0 ? formatMoney(r.spent) : '0'}</span>
+                                            </div>
+                                        </div>
+                                        <div className="bg-stone-50 p-2 rounded-lg">
+                                            <div className="font-bold text-stone-400 mb-1 uppercase text-[9px] flex items-center">
+                                                <i className="fa-solid fa-piggy-bank mr-1.5"></i> Sinking Fund
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-blue-500 font-medium">+{r.sfIn > 0 ? formatMoney(r.sfIn) : '0'}</span>
+                                                <span className="text-orange-500 font-medium">-{r.sfUsed > 0 ? formatMoney(r.sfUsed) : '0'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Individual Expenses List */}
+                                    {r.expenses && r.expenses.length > 0 && (
+                                        <div className="bg-stone-50 rounded-xl p-3 border border-stone-100">
+                                            <div className="text-[9px] font-bold text-stone-400 uppercase mb-2 tracking-wider">Itemized Expenses</div>
+                                            <div className="space-y-2">
+                                                {r.expenses.map((exp, k) => (
+                                                    <div key={k} className="flex justify-between items-start text-xs border-b border-stone-200/50 last:border-0 pb-1 last:pb-0">
+                                                        <div className="text-stone-600">
+                                                            <span className="font-bold">{exp.title}</span>
+                                                            {exp.qty > 1 && <span className="text-stone-400 ml-1">x{exp.qty}</span>}
+                                                            {exp.fundSource === 'split' && <span className="ml-2 text-[8px] bg-orange-100 text-orange-600 px-1 rounded font-bold">SPLIT</span>}
+                                                        </div>
+                                                        <div className="font-bold text-stone-700">{formatMoney(exp.amount)}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))
+                        }
+                    </div>
+                    {isAdmin && !isClosed && (
+                        <button onClick={() => setConfirmCloseStage(1)} className="w-full py-3 rounded-xl border-2 border-stone-200 text-stone-400 font-bold text-xs hover:border-red-200 hover:text-red-500 transition">
+                            Close This Month
+                        </button>
+                    )}
+                </div>
+            );
+        };
 
         const App = () => {
             const [user, setUser] = React.useState(null);
@@ -855,7 +1126,7 @@
                 const unsub = onAuthStateChanged(auth, (u) => { 
                     setUser(u); 
                     setLoading(false); 
-                    if(u) { setAuthorized(true); setSubView('dashboard'); }
+                    if(u) { setAuthorized(true); setSubView('dashboard'); } // Corrected: changed setView('admin') to setSubView('dashboard')
                     else { setLoggingIn(false); } 
                 }); 
                 return () => unsub(); 
@@ -906,49 +1177,64 @@
 
             if (!authorized && !user) {
                 return (
-                    <div className="fixed inset-0 z-50 bg-stone-900 bg-cover bg-center" style={{ backgroundImage: "url('./background.png')" }}>
+                    <div 
+                        className="h-full flex flex-col items-center justify-center p-6 bg-stone-900 relative bg-cover bg-center bg-no-repeat"
+                        style={{ backgroundImage: "url('./background.png')" }}
+                    >
+                        {/* Gradient Overlay for opacity effect */}
                         <div className="absolute inset-0 bg-gradient-to-br from-stone-900/80 via-stone-900/60 to-stone-900/90 backdrop-blur-[2px]"></div>
-                        <div className="relative z-10 flex flex-col h-full w-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] p-6 overflow-y-auto items-center justify-center">
-                            {toast && <Toast {...toast} onClose={()=>setToast(null)} />}
-                            <div className="w-full max-w-sm bg-white/50 p-8 rounded-3xl shadow-2xl border border-stone-100 animate-scale-in">
-                                <div className="text-center mb-8">
-                                    <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center">
-                                         <img src="favicon.png" className="w-full h-full object-contain" alt="Logo" onError={(e) => { e.target.style.display = 'none'; const icon = e.target.nextElementSibling; if (icon) icon.classList.remove('hidden'); }} />
-                                         <i className="fa-solid fa-building-columns text-teal-600 text-6xl hidden"></i>
-                                    </div>
-                                    <h1 className="text-4xl font-extrabold text-teal-900">BlockSync</h1>
-                                    <p className="text-stone-900 text-sm">HOA Accounting & Transparency Portal</p>
+
+                        {toast && <Toast {...toast} onClose={()=>setToast(null)} />}
+                        
+                        <div className="relative z-10 w-full max-w-sm bg-white/50 p-8 rounded-3xl shadow-2xl border border-stone-100 animate-scale-in">
+                            <div className="text-center mb-8">
+                                <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+                                     <img src="favicon.png" className="w-full h-full object-contain" alt="Logo" 
+                                        onError={(e) => {
+                                            e.target.style.display = 'none';
+                                            const icon = e.target.nextElementSibling;
+                                            if (icon) {
+                                                icon.classList.remove('hidden');
+                                            }
+                                     }} 
+                                     />
+                                     <i className="fa-solid fa-building-columns text-teal-600 text-6xl hidden"></i>
                                 </div>
-                                <div className="space-y-6">
-                                    <div><label className="text-xs font-bold text-stone-800 uppercase ml-1">Resident Access</label><form onSubmit={(e) => {e.preventDefault(); verifyAccessCode();}} className="flex gap-2"><input type="text" placeholder="ENTER ACCESS CODE" value={accessCode} onChange={e => setAccessCode(e.target.value.toUpperCase())} className="flex-1 h-12 bg-stone-100 rounded-xl px-4 font-bold text-center tracking-widest outline-none focus:ring-2 focus:ring-teal-500 transition placeholder:font-medium placeholder:tracking-normal placeholder:normal-case" disabled={verifying} /><button type="submit" disabled={verifying} className="w-12 h-12 bg-teal-800 text-white rounded-xl shadow-lg flex items-center justify-center active:scale-95 transition disabled:opacity-50">{verifying ? <i className="fa-solid fa-circle-notch fa-spin"></i> : <i className="fa-solid fa-arrow-right"></i>}</button></form></div>
-                                    <div className="relative flex py-2 items-center"><div className="flex-grow border-t border-stone-100"></div><span className="flex-shrink mx-4 text-stone-800 text-xs font-bold uppercase">Or Admin</span><div className="flex-grow border-t border-stone-100"></div></div>
-                                    <form onSubmit={handleAdminLogin} className="space-y-3"><input name="email" type="text" placeholder="Username" autoCapitalize="off" className="w-full h-12 bg-stone-50 border border-stone-100 rounded-xl px-4 text-sm font-medium outline-none focus:border-stone-400 transition" required /><div className="relative"><input name="pass" type={showPass ? "text" : "password"} placeholder="Password" className="w-full h-12 bg-stone-50 border border-stone-100 rounded-xl px-4 text-sm font-medium outline-none focus:border-stone-400 transition pr-10" required /><button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-3 text-teal-800 hover:text-stone-600"><i className={`fa-solid ${showPass ? 'fa-eye-slash' : 'fa-eye'}`}></i></button></div><button type="submit" disabled={loggingIn} className="w-full h-12 bg-teal-800 text-white rounded-xl font-bold shadow-lg hover:bg-stone-900 transition text-sm disabled:opacity-70">{loggingIn ? <i className="fa-solid fa-circle-notch fa-spin"></i> : 'Admin Dashboard'}</button></form>
-                                </div>
+                                <h1 className="text-4xl font-extrabold text-teal-900">BlockSync</h1>
+                                <p className="text-stone-900 text-sm">HOA Accounting & Transparency Portal</p>
                             </div>
-                            <p className="mt-8 text-xs text-stone-400 font-medium bg-stone-900/50 px-3 py-1 rounded-full border border-white/10 backdrop-blur-md">Secured Ledger v1.2</p>
+                            <div className="space-y-6">
+                                <div><label className="text-xs font-bold text-stone-800 uppercase ml-1">Resident Access</label><form onSubmit={(e) => {e.preventDefault(); verifyAccessCode();}} className="flex gap-2"><input type="text" placeholder="ENTER ACCESS CODE" value={accessCode} onChange={e => setAccessCode(e.target.value.toUpperCase())} className="flex-1 h-12 bg-stone-100 rounded-xl px-4 font-bold text-center tracking-widest outline-none focus:ring-2 focus:ring-teal-500 transition placeholder:font-medium placeholder:tracking-normal placeholder:normal-case" disabled={verifying} /><button type="submit" disabled={verifying} className="w-12 h-12 bg-teal-800 text-white rounded-xl shadow-lg flex items-center justify-center active:scale-95 transition disabled:opacity-50">{verifying ? <i className="fa-solid fa-circle-notch fa-spin"></i> : <i className="fa-solid fa-arrow-right"></i>}</button></form></div>
+                                <div className="relative flex py-2 items-center"><div className="flex-grow border-t border-stone-100"></div><span className="flex-shrink mx-4 text-stone-800 text-xs font-bold uppercase">Or Admin</span><div className="flex-grow border-t border-stone-100"></div></div>
+                                <form onSubmit={handleAdminLogin} className="space-y-3"><input name="email" type="text" placeholder="Username" autoCapitalize="off" className="w-full h-12 bg-stone-50 border border-stone-100 rounded-xl px-4 text-sm font-medium outline-none focus:border-stone-400 transition" required /><div className="relative"><input name="pass" type={showPass ? "text" : "password"} placeholder="Password" className="w-full h-12 bg-stone-50 border border-stone-100 rounded-xl px-4 text-sm font-medium outline-none focus:border-stone-400 transition pr-10" required /><button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-3 text-teal-800 hover:text-stone-600"><i className={`fa-solid ${showPass ? 'fa-eye-slash' : 'fa-eye'}`}></i></button></div><button type="submit" disabled={loggingIn} className="w-full h-12 bg-teal-800 text-white rounded-xl font-bold shadow-lg hover:bg-stone-900 transition text-sm disabled:opacity-70">{loggingIn ? <i className="fa-solid fa-circle-notch fa-spin"></i> : 'Admin Dashboard'}</button></form>
+                            </div>
                         </div>
+                        <p className="relative z-10 mt-8 text-xs text-stone-400 font-medium bg-stone-900/50 px-3 py-1 rounded-full border border-white/10 backdrop-blur-md">Secured Ledger v1.3</p>
                     </div>
                 );
             }
 
             return (
-                <div className="flex flex-col h-full w-full bg-stone-50">
+                <div className="h-full flex flex-col bg-stone-50">
                     {toast && <Toast {...toast} onClose={()=>setToast(null)} />}
                     {showSettings && <CategoryManager onClose={()=>setShowSettings(false)} showToast={showToast} />}
                     
-                    <header className="bg-white px-6 py-4 pt-[calc(env(safe-area-inset-top)+1rem)] flex justify-between items-center shadow-sm z-20 sticky top-0">
+                    <header className="bg-white px-6 py-4 flex justify-between items-center shadow-sm z-20 sticky top-0">
                         <div className="flex flex-col"><h1 className="font-extrabold text-lg text-stone-800 tracking-tight leading-none flex items-center">
                             <img src="logo.png" className="w-6 h-6 object-contain mr-2" alt="Logo" />
                             {user ? 'Admin Console' : 'Resident View'}
                         </h1>
-                        <span className="text-[10px] text-stone-400 font-medium ml-8">Secured Ledger v1.2</span>
+                        {/* Adjusted margin-left (ml-8) slightly to align with text start */}
+                        <span className="text-[10px] text-stone-400 font-medium ml-8">Secured Ledger</span>
                     </div>
                         <div className="relative">
                             <button onClick={()=>setMenuOpen(!menuOpen)} className="w-10 h-10 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center transition"><i className="fa-solid fa-bars"></i></button>
                             {menuOpen && (
                                 <>
                                     <div className="fixed inset-0 z-30 bg-transparent" onClick={()=>setMenuOpen(false)}></div>
-                                    <div className="absolute top-12 right-0 w-48 bg-white rounded-2xl shadow-xl border border-stone-100 z-40 p-2 animate-scale-in mt-[env(safe-area-inset-top)]">
+                                    <div className="absolute top-12 right-0 w-48 bg-white rounded-2xl shadow-xl border border-stone-100 z-40 p-2 animate-scale-in">
+                                        <button onClick={()=>{setSubView('dashboard'); setMenuOpen(false);}} className="w-full text-left px-4 py-3 rounded-xl hover:bg-stone-50 text-sm font-medium text-stone-700 flex items-center gap-3"><i className="fa-solid fa-chart-pie w-4"></i> Dashboard</button>
+                                        <button onClick={()=>{setSubView('report'); setMenuOpen(false);}} className="w-full text-left px-4 py-3 rounded-xl hover:bg-stone-50 text-sm font-medium text-stone-700 flex items-center gap-3"><i className="fa-solid fa-file-invoice-dollar w-4"></i> Budget Report</button>
                                         {user ? (
                                             <>
                                                 <button onClick={()=>{setShowSettings(true); setMenuOpen(false);}} className="w-full text-left px-4 py-3 rounded-xl hover:bg-stone-50 text-sm font-medium text-stone-700 flex items-center gap-3"><i className="fa-solid fa-gear w-4"></i> Categories</button>
@@ -956,7 +1242,10 @@
                                                 <button onClick={()=>signOut(auth)} className="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 text-sm font-bold text-red-500 flex items-center gap-3"><i className="fa-solid fa-power-off w-4"></i> Logout</button>
                                             </>
                                         ) : (
-                                            <button onClick={()=>{setAuthorized(false); setUser(null); setMenuOpen(false);}} className="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 text-sm font-bold text-red-500 flex items-center gap-3"><i className="fa-solid fa-right-from-bracket w-4"></i> Exit View</button>
+                                            <>
+                                                <div className="h-px bg-stone-100 my-1"></div>
+                                                <button onClick={()=>{setAuthorized(false); setUser(null); setMenuOpen(false);}} className="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 text-sm font-bold text-red-500 flex items-center gap-3"><i className="fa-solid fa-right-from-bracket w-4"></i> Exit View</button>
+                                            </>
                                         )}
                                     </div>
                                 </>
@@ -964,15 +1253,17 @@
                         </div>
                     </header>
 
-                    <main className="flex-1 overflow-y-auto scroll-area p-4 pb-24">
+                    <main className="flex-1 overflow-y-auto scroll-area p-4 pb-0">
                         {subView === 'report' && (
                             <div>
+                                <button onClick={()=>setSubView('dashboard')} className="mb-4 text-sm font-bold text-stone-400 flex items-center gap-2"><i className="fa-solid fa-arrow-left"></i> Back to Dashboard</button>
                                 <BudgetReport showToast={showToast} isAdmin={!!user} />
                             </div>
                         )}
 
                         {subView === 'dashboard' && (
                             <>
+                                {/* RESIDENT VIEW */}
                                 {!user && (
                                     <div className="space-y-6 animate-fade-in">
                                         <div className="bg-gradient-to-br from-stone-800 to-stone-900 rounded-3xl p-6 text-white shadow-xl">
@@ -997,6 +1288,7 @@
                                     </div>
                                 )}
 
+                                {/* ADMIN VIEW */}
                                 {user && (
                                     <div className="space-y-6 animate-slide-up">
                                         <TransactionRecorder showToast={showToast} setShowSettings={setShowSettings} totalFunds={funds.ops + funds.res} />
@@ -1015,7 +1307,6 @@
                             </div>
                         )}
                     </main>
-                    <BottomNav current={subView} setView={setSubView} />
                 </div>
             );
         };
@@ -1026,7 +1317,13 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                try { navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW registration skipped (preview mode):', err)); } catch (e) { console.log('SW not supported in this environment'); }
+                // Wrap in try-catch to prevent errors in environments where SW is restricted (like blob/data URLs)
+                try {
+                    navigator.serviceWorker.register('./sw.js')
+                        .catch(err => console.log('SW registration skipped (preview mode):', err));
+                } catch (e) {
+                    console.log('SW not supported in this environment');
+                }
             });
         }
     </script>

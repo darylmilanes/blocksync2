@@ -34,7 +34,10 @@
             -webkit-font-smoothing: antialiased; 
             background-color: #fafaf9; /* Stone-50 */
             margin: 0; padding: 0;
+            
+            /* KEY FOR IOS FEEL: Prevents the whole page from bouncing */
             overscroll-behavior-y: none;
+            
             user-select: none;
             -webkit-text-size-adjust: 100%;
         }
@@ -44,8 +47,9 @@
             font-size: 16px !important; 
         }
         
-        /* APP SHELL */
+        /* APP SHELL STRATEGY */
         html, body { height: 100%; width: 100%; overflow: hidden; }
+        
         #root { 
             height: 100dvh; 
             width: 100vw; 
@@ -53,9 +57,16 @@
             flex-direction: column; 
             overflow: hidden; 
             
-            /* IOS SAFE AREA SUPPORT - Top only. Bottom is explicitly 0 to cover home slider area. */
+            /* IOS SAFE AREA SUPPORT - Top only for the root container */
             padding-top: env(safe-area-inset-top);
-            padding-bottom: 0 !important; 
+        }
+
+        /* THE SECRET SAUCE:
+           This allows the internal content to scroll while looking like a native app.
+           We add the safe-area padding here so the last item isn't covered by the home bar.
+        */
+        .native-scroll-area {
+            padding-bottom: calc(6rem + env(safe-area-inset-bottom)); /* 6rem = pb-24 */
         }
 
         /* UTILITIES */
@@ -1107,7 +1118,7 @@
                 const unsub = onAuthStateChanged(auth, (u) => { 
                     setUser(u); 
                     setLoading(false); 
-                    if(u) { setAuthorized(true); setSubView('dashboard'); } // Corrected: changed setView('admin') to setSubView('dashboard')
+                    if(u) { setAuthorized(true); setSubView('dashboard'); } 
                     else { setLoggingIn(false); } 
                 }); 
                 return () => unsub(); 
@@ -1205,7 +1216,6 @@
                             <img src="logo.png" className="w-6 h-6 object-contain mr-2" alt="Logo" />
                             {user ? 'Admin Console' : 'Resident View'}
                         </h1>
-                        {/* Adjusted margin-left (ml-8) slightly to align with text start */}
                         <span className="text-[10px] text-stone-400 font-medium ml-8">Secured Ledger</span>
                     </div>
                         <div className="relative">
@@ -1234,7 +1244,8 @@
                         </div>
                     </header>
 
-                    <main className="flex-1 overflow-y-auto scroll-area p-4 pb-0">
+                    {/* UPDATED MAIN CONTAINER WITH IOS PADDING */}
+                    <main className="flex-1 overflow-y-auto scroll-area p-4 pb-24 native-scroll-area">
                         {subView === 'report' && (
                             <div>
                                 <button onClick={()=>setSubView('dashboard')} className="mb-4 text-sm font-bold text-stone-400 flex items-center gap-2"><i className="fa-solid fa-arrow-left"></i> Back to Dashboard</button>

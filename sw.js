@@ -1,46 +1,1314 @@
-const CACHE_NAME = 'blocksync-v1';
-const ASSETS_TO_CACHE = [
-  './index.html',
-  './manifest.json',
-  './favicon.png',
-  './icon-192.png',
-  './icon-512.png',
-  '[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)',
-  '[https://unpkg.com/react@18/umd/react.development.js](https://unpkg.com/react@18/umd/react.development.js)',
-  '[https://unpkg.com/react-dom@18/umd/react-dom.development.js](https://unpkg.com/react-dom@18/umd/react-dom.development.js)',
-  '[https://unpkg.com/@babel/standalone/babel.min.js](https://unpkg.com/@babel/standalone/babel.min.js)',
-  '[https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css](https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css)',
-  '[https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap](https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap)'
-];
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>BlockSync - Sonera HOA</title>
+    
+    <!-- PWA Manifest & Icons -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
-  );
-});
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-self.addEventListener('fetch', (event) => {
-  // Network first strategy for everything else to ensure data freshness for Firebase
-  event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request);
-    })
-  );
-});
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
-  );
-});
+    <style>
+        /* BASE SETTINGS */
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            -webkit-font-smoothing: antialiased; 
+            background-color: #fafaf9; /* Stone-50 */
+            margin: 0; padding: 0;
+            overscroll-behavior-y: none;
+            user-select: none;
+            -webkit-text-size-adjust: 100%;
+        }
+        
+        /* IOS ZOOM PREVENTION */
+        input, select, textarea, button {
+            font-size: 16px !important; 
+        }
+        
+        /* APP SHELL */
+        html, body { height: 100%; width: 100%; overflow: hidden; }
+        
+        #root { 
+            /* FIX: Changed from 100dvh to 100% to force full height including home bar area */
+            height: 100%; 
+            width: 100%; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+            
+            /* IOS SAFE AREA SUPPORT - Top only. Bottom is explicitly 0 to cover home slider area. */
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: 0 !important; 
+        }
+
+        /* UTILITIES */
+        .tap-highlight-transparent { -webkit-tap-highlight-color: transparent; }
+        .scroll-area::-webkit-scrollbar { width: 0px; background: transparent; }
+        
+        /* HIDE NUMBER SPINNERS */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* CUSTOM ANIMATIONS */
+        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
+        .animate-scale-in { animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        /* Toggle Switch */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #0d9488;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #0d9488;
+        }
+        
+        /* VOID STYLING */
+        .void-row {
+            opacity: 0.5;
+            background-color: #f5f5f4;
+            text-decoration: line-through;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        teal: { 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e', 800: '#115e59', 900: '#134e4a' },
+                        stone: { 50: '#fafaf9', 100: '#f5f5f4', 200: '#e7e5e4', 300: '#d6d3d1', 400: '#a8a29e', 500: '#78716c', 600: '#57534e', 700: '#44403c', 800: '#292524', 900: '#1c1917' },
+                        orange: { 500: '#f97316', 100: '#ffedd5', 200: '#fed7aa', 300: '#fdba74' },
+                        blue: { 400: '#60a5fa', 500: '#3b82f6' }
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                        'glow': '0 0 15px rgba(13, 148, 136, 0.3)'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="text-stone-800 tap-highlight-transparent">
+    
+    <div id="root">
+        <!-- Loader -->
+        <div class="flex-1 flex flex-col items-center justify-center bg-stone-50 text-stone-400">
+            <i class="fa-solid fa-circle-notch fa-spin text-3xl text-teal-600 mb-3"></i>
+            <span class="font-semibold text-sm tracking-wide">Initializing BlockSync...</span>
+        </div>
+    </div>
+
+    <script type="text/babel" data-type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, doc, updateDoc, getDoc, setDoc, deleteDoc, Timestamp, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        // --- CONFIGURATION ---
+        const SUBDIVISION_MAP = {
+            "1": 67, "2": 98, "3": 57, "4": 54, "5": 43,
+            "6": 13, "7": 18, "8": 18, "9": 16, "10": 2,
+            "11": 30, "12": 28, "13": 26, "14": 26, "15": 9,
+            "16": 18, "17": 18, "18": 18, "19": 18, "20": 42,
+            "21": 42, "22": 38, "23": 34, "24": 30, "25": 10
+        };
+
+        const SINKING_FUND_RATE = 0.10; 
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCApFluUkql1dqrGwH5r67DO6E-L-ez-OM", 
+            authDomain: "blocksync-d48e5.firebaseapp.com",
+            projectId: "blocksync-d48e5",
+            storageBucket: "blocksync-d48e5.firebasestorage.app",
+            messagingSenderId: "354921111118",
+            appId: "1:354921111118:web:7b7fa1624fd0d37e402d1f"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // --- HELPER FUNCTIONS ---
+        const formatMoney = (amount) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
+        const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        
+        // --- CUSTOM UI PRIMITIVES ---
+
+        const Toast = ({ message, type, onClose }) => {
+            React.useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
+            const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+            const colors = { success: 'bg-teal-600', error: 'bg-red-500', warning: 'bg-orange-500', info: 'bg-stone-800' };
+            return (
+                <div className="fixed top-6 left-0 right-0 z-[100] flex justify-center px-4 pointer-events-none">
+                    <div className={`${colors[type]} text-white px-5 py-3 rounded-full shadow-lg shadow-black/10 flex items-center gap-3 animate-scale-in pointer-events-auto`}>
+                        <i className={`fa-solid ${icons[type]}`}></i>
+                        <span className="font-semibold text-sm">{message}</span>
+                    </div>
+                </div>
+            );
+        };
+
+        const Modal = ({ children, onClose, title }) => (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
+                <div className="relative bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-scale-in flex flex-col max-h-[90vh]">
+                    {title && (
+                        <div className="px-6 py-4 border-b border-stone-100 flex justify-between items-center bg-stone-50 sticky top-0 z-10 shrink-0">
+                            <h3 className="font-bold text-stone-800">{title}</h3>
+                            <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-200 text-stone-500 hover:bg-stone-300 flex items-center justify-center transition">
+                                <i className="fa-solid fa-times"></i>
+                            </button>
+                        </div>
+                    )}
+                    <div className="flex-1 overflow-y-auto scroll-area">
+                        {children}
+                    </div>
+                </div>
+            </div>
+        );
+
+        const CustomDatePicker = ({ value, onChange, label }) => {
+            const [open, setOpen] = React.useState(false);
+            const [viewDate, setViewDate] = React.useState(value ? new Date(value) : new Date());
+            const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+            const firstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
+
+            const handleDayClick = (day) => {
+                const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+                const offset = newDate.getTimezoneOffset();
+                const adjustedDate = new Date(newDate.getTime() - (offset*60*1000));
+                onChange(adjustedDate.toISOString().split('T')[0]);
+                setOpen(false);
+            };
+
+            const changeMonth = (delta) => {
+                const d = new Date(viewDate);
+                d.setMonth(d.getMonth() + delta);
+                setViewDate(d);
+            };
+
+            const generateGrid = () => {
+                const y = viewDate.getFullYear();
+                const m = viewDate.getMonth();
+                const days = daysInMonth(y, m);
+                const start = firstDayOfMonth(y, m);
+                const grid = [];
+                for(let i=0; i<start; i++) grid.push(<div key={`e-${i}`} />);
+                for(let i=1; i<=days; i++) {
+                    const isSelected = value && new Date(value).getDate() === i && new Date(value).getMonth() === m;
+                    const isToday = new Date().getDate() === i && new Date().getMonth() === m && new Date().getFullYear() === y;
+                    grid.push(
+                        <button key={i} onClick={() => handleDayClick(i)} className={`h-9 w-9 rounded-full text-sm font-medium flex items-center justify-center transition ${isSelected ? 'bg-teal-600 text-white shadow-lg shadow-teal-200' : isToday ? 'bg-teal-50 text-teal-600 border border-teal-200' : 'hover:bg-stone-100 text-stone-600'}`}>{i}</button>
+                    );
+                }
+                return grid;
+            };
+
+            return (
+                <div className="relative">
+                    {label && <label className="block text-xs font-bold text-stone-400 uppercase mb-1 ml-1">{label}</label>}
+                    <button type="button" onClick={() => setOpen(!open)} className="w-full h-12 bg-stone-100 rounded-xl px-4 flex items-center justify-between font-semibold text-stone-700 hover:bg-stone-200 transition border border-transparent focus:border-teal-500 focus:bg-white">
+                        <span>{value ? formatDate(new Date(value)) : "Select Date"}</span>
+                        <i className="fa-regular fa-calendar text-stone-400"></i>
+                    </button>
+                    
+                    {open && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                            <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setOpen(false)}></div>
+                            <div className="relative bg-white w-full max-w-sm rounded-2xl shadow-xl z-50 p-4 border border-stone-100 animate-scale-in">
+                                <div className="flex justify-between items-center mb-4">
+                                    <button type="button" onClick={() => changeMonth(-1)} className="w-8 h-8 rounded-full hover:bg-stone-100"><i className="fa-solid fa-chevron-left text-xs"></i></button>
+                                    <span className="font-bold text-stone-800">{viewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
+                                    <button type="button" onClick={() => changeMonth(1)} className="w-8 h-8 rounded-full hover:bg-stone-100"><i className="fa-solid fa-chevron-right text-xs"></i></button>
+                                </div>
+                                <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                                    {['S','M','T','W','T','F','S'].map((d,i) => <span key={i} className="text-xs font-bold text-stone-300">{d}</span>)}
+                                </div>
+                                <div className="grid grid-cols-7 gap-1">
+                                    {generateGrid()}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const CustomSelect = ({ label, value, options, onChange, placeholder = "Select...", disabled = false }) => {
+            const [open, setOpen] = React.useState(false);
+            const selectedLabel = options.find(o => o.value == value)?.label || value || placeholder;
+
+            return (
+                <div className={`relative ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                    {label && <label className="block text-xs font-bold text-stone-400 uppercase mb-1 ml-1">{label}</label>}
+                    <button type="button" onClick={() => !disabled && setOpen(!open)} className="w-full h-12 bg-stone-100 rounded-xl px-4 flex items-center justify-between font-semibold text-stone-700 hover:bg-stone-200 transition border border-transparent focus:border-teal-500 focus:bg-white text-left truncate">
+                        <span className="truncate">{selectedLabel}</span>
+                        <i className="fa-solid fa-chevron-down text-xs text-stone-400"></i>
+                    </button>
+                    {open && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                            <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setOpen(false)}></div>
+                            <div className="relative bg-white w-full max-w-sm rounded-2xl shadow-xl z-50 border border-stone-100 animate-scale-in max-h-[60vh] flex flex-col">
+                                <div className="px-6 py-4 border-b border-stone-100 font-bold text-stone-800 flex justify-between items-center sticky top-0 bg-white z-10 rounded-t-2xl">
+                                    <span>{label || "Select Option"}</span>
+                                    <button onClick={()=>setOpen(false)} className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center hover:bg-stone-200"><i className="fa-solid fa-times text-stone-500"></i></button>
+                                </div>
+                                <div className="overflow-y-auto scroll-area p-2">
+                                    {options.length > 0 ? options.map((opt, idx) => (
+                                        <button 
+                                            key={idx} 
+                                            type="button" 
+                                            disabled={opt.disabled}
+                                            onClick={() => { if(!opt.disabled) { onChange(opt.value); setOpen(false); }}} 
+                                            className={`w-full text-left px-4 py-4 text-sm font-medium rounded-xl mb-1 transition flex justify-between items-center
+                                                ${value == opt.value ? 'bg-teal-50 text-teal-600' : 'text-stone-600 hover:bg-stone-50'}
+                                                ${opt.disabled ? 'opacity-50 cursor-not-allowed bg-stone-50' : ''}
+                                            `}
+                                        >
+                                            <span>{opt.label}</span>
+                                            {opt.disabled && <span className="text-[10px] font-bold text-stone-400 bg-stone-100 px-2 py-0.5 rounded">{opt.disabledLabel || "UNAVAILABLE"}</span>}
+                                        </button>
+                                    )) : <div className="p-4 text-center text-stone-400">No options available</div>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // --- COMPONENTS ---
+
+        const ResidentUnitChecker = () => {
+            const [block, setBlock] = React.useState("");
+            const [lot, setLot] = React.useState("");
+            const [history, setHistory] = React.useState([]);
+            const [loading, setLoading] = React.useState(false);
+            const [searched, setSearched] = React.useState(false);
+
+            const lotOptions = React.useMemo(() => {
+                if(!block) return [];
+                const max = SUBDIVISION_MAP[block] || 0;
+                return Array.from({length: max}, (_, i) => ({ value: (i+1).toString(), label: `Lot ${i+1}` }));
+            }, [block]);
+
+            const checkStatus = async () => {
+                if(!block || !lot) return;
+                setLoading(true);
+                setSearched(true);
+                
+                const q = query(collection(db, "payments"), where("block", "==", block), where("lot", "==", lot), where("status", "==", "verified"));
+                
+                const snap = await onSnapshot(q, (snapshot) => {
+                    const docs = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+                    // Client-side sort to avoid complex index
+                    const payments = docs.sort((a,b) => b.datePaid.seconds - a.datePaid.seconds);
+                    setHistory(payments.slice(0, 5)); // Show top 5
+                    setLoading(false);
+                }, () => { setLoading(false); });
+            };
+
+            const reset = () => { setHistory([]); setBlock(""); setLot(""); setSearched(false); };
+
+            if(history.length > 0) {
+                return (
+                    <div className="animate-scale-in">
+                        <div className="bg-white rounded-2xl shadow-soft border border-stone-100 overflow-hidden mb-6">
+                            <div className="bg-stone-50 px-6 py-4 border-b border-stone-100 flex justify-between items-center">
+                                <span className="font-bold text-stone-800">Unit {block}-{lot}</span>
+                                <span className="text-xs font-bold bg-teal-100 text-teal-600 px-2 py-1 rounded">History</span>
+                            </div>
+                            <div className="divide-y divide-stone-100">
+                                {history.map(h => (
+                                    <div key={h.id} className="p-4 flex justify-between items-center">
+                                        <div>
+                                            <div className="font-bold text-stone-700 text-sm">{h.category || 'Monthly Dues'}</div>
+                                            <div className="text-xs text-stone-400">{formatDate(h.datePaid.toDate())}</div>
+                                        </div>
+                                        <div className="font-bold text-teal-600">{formatMoney(h.amount)}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <button onClick={reset} className="w-full h-14 bg-stone-800 text-white rounded-xl font-bold shadow-lg">Check Another Unit</button>
+                    </div>
+                );
+            }
+            
+            // If search performed but no data
+            if(loading === false && searched && history.length === 0) {
+                 return (
+                    <div className="animate-scale-in text-center p-8 bg-white rounded-3xl shadow-soft">
+                        <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-4 text-stone-400"><i className="fa-solid fa-folder-open text-2xl"></i></div>
+                        <h3 className="font-bold text-stone-800 mb-1">No Records Found</h3>
+                        <p className="text-sm text-stone-400 mb-6">No payment history available for Unit {block}-{lot}.</p>
+                        <button onClick={reset} className="w-full h-14 bg-stone-800 text-white rounded-xl font-bold shadow-lg">Try Again</button>
+                    </div>
+                 )
+            }
+
+            return (
+                <div className="animate-fade-in space-y-6">
+                    <div className="bg-white p-6 rounded-3xl shadow-soft border border-stone-100">
+                        <div className="text-center mb-6">
+                            <div className="w-12 h-12 bg-teal-100 text-teal-600 rounded-xl flex items-center justify-center mx-auto mb-3"><i className="fa-solid fa-magnifying-glass text-xl"></i></div>
+                            <h3 className="font-bold text-lg text-stone-800">Unit Activity Check</h3>
+                            <p className="text-stone-400 text-sm">View recent payments.</p>
+                        </div>
+                        <div className="space-y-4">
+                            <CustomSelect label="Block Number" value={block} onChange={(v) => { setBlock(v); setLot(""); }} options={Object.keys(SUBDIVISION_MAP).sort((a,b)=>a-b).map(k => ({ value: k, label: `Block ${k}` }))} />
+                            <CustomSelect label="Lot Number" value={lot} onChange={setLot} disabled={!block} placeholder={!block ? "Select Block First" : "Select Lot"} options={lotOptions} />
+                            <button onClick={checkStatus} disabled={!block || !lot || loading} className="w-full h-14 bg-teal-600 text-white rounded-xl font-bold shadow-lg shadow-teal-200 mt-2 disabled:opacity-50 disabled:shadow-none transition-all active:scale-95">{loading ? <i className="fa-solid fa-circle-notch fa-spin"></i> : "Check History"}</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const CategoryManager = ({ onClose, showToast }) => {
+            const [list, setList] = React.useState([]);
+            const [newCat, setNewCat] = React.useState("");
+            const [loading, setLoading] = React.useState(true);
+
+            React.useEffect(() => {
+                const unsub = onSnapshot(doc(db, "config", "categories"), (snap) => {
+                    if (snap.exists()) {
+                        const data = snap.data();
+                        setList(data.incomeList || []);
+                    } else setList([]);
+                    setLoading(false);
+                });
+                return () => unsub();
+            }, []);
+
+            const addItem = async (e) => {
+                e.preventDefault();
+                if (!newCat.trim()) return;
+                const updated = [...list, newCat.trim()];
+                try { await setDoc(doc(db, "config", "categories"), { incomeList: updated }, { merge: true }); setNewCat(""); } catch(err) { showToast("Error saving", "error"); }
+            };
+
+            const removeItem = async (item) => {
+                if(!confirm(`Remove "${item}"?`)) return;
+                const updated = list.filter(i => i !== item);
+                try { await setDoc(doc(db, "config", "categories"), { incomeList: updated }, { merge: true }); } catch(err) { showToast("Error removing", "error"); }
+            };
+
+            return (
+                <Modal title="Manage Fund Sources" onClose={onClose}>
+                    <div className="p-4">
+                        <div className="space-y-2 mb-4">
+                            {loading ? <div className="text-center py-4 text-stone-400"><i className="fa-solid fa-circle-notch fa-spin"></i></div> : list.length === 0 ? <div className="text-center py-4 text-stone-300 italic text-sm">No fund sources defined.</div> : list.map((item, i) => (<div key={i} className="flex justify-between items-center bg-stone-50 p-3 rounded-lg border border-stone-100"><span className="font-medium text-stone-700">{item}</span><button onClick={()=>removeItem(item)} className="text-stone-400 hover:text-red-500 px-2"><i className="fa-solid fa-trash"></i></button></div>))}
+                        </div>
+                        <form onSubmit={addItem} className="flex gap-2"><input value={newCat} onChange={e=>setNewCat(e.target.value)} placeholder="New Fund Source Name" className="flex-1 h-12 bg-stone-100 rounded-xl px-4 outline-none focus:bg-white focus:border border border-transparent focus:border-teal-500 transition" /><button type="submit" className="w-12 h-12 bg-stone-800 text-white rounded-xl shadow-lg"><i className="fa-solid fa-plus"></i></button></form>
+                    </div>
+                </Modal>
+            );
+        };
+
+        const TransactionRecorder = ({ showToast, setShowSettings, totalFunds }) => {
+            const [mode, setMode] = React.useState('income');
+            const [date, setDate] = React.useState(new Date().toISOString().split('T')[0]);
+            const [fundSources, setFundSources] = React.useState([]);
+            const [categoryBalances, setCategoryBalances] = React.useState({});
+            const [isClosedMonth, setIsClosedMonth] = React.useState(false);
+            
+            // Income
+            const [isBatch, setIsBatch] = React.useState(false);
+            const [block, setBlock] = React.useState("");
+            const [lot, setLot] = React.useState("");
+            const [selectedLots, setSelectedLots] = React.useState([]);
+            const [category, setCategory] = React.useState("");
+            const [paidUnits, setPaidUnits] = React.useState([]); 
+            
+            // Expense
+            const [expTitle, setExpTitle] = React.useState("");
+            const [fundSource, setFundSource] = React.useState(""); 
+            const [fundBalance, setFundBalance] = React.useState(null); 
+            const [qty, setQty] = React.useState(1);
+            
+            const [amount, setAmount] = React.useState("");
+            const [loading, setLoading] = React.useState(false);
+
+            // 1. Fetch Config
+            React.useEffect(() => {
+                const unsub = onSnapshot(doc(db, "config", "categories"), (snap) => {
+                    if (snap.exists()) {
+                        const d = snap.data();
+                        const list = d.incomeList || [];
+                        setFundSources(list);
+                        if (!category && list.length > 0) setCategory(list[0]);
+                    }
+                });
+                return () => unsub();
+            }, []);
+
+            // 2. Fetch Balances for ALL categories (for disabled state dropdown)
+            React.useEffect(() => {
+                if(mode !== 'expense') return;
+                
+                const qP = query(collection(db, "payments"), where("status", "==", "verified"));
+                const qE = query(collection(db, "expenses"), where("status", "==", "verified"));
+                
+                let incomeMap = {};
+                let expenseMap = {};
+
+                const updateBals = () => {
+                    const bals = {};
+                    Object.keys(incomeMap).forEach(k => bals[k] = incomeMap[k]);
+                    Object.keys(expenseMap).forEach(k => {
+                        if(!bals[k]) bals[k] = 0;
+                        bals[k] -= expenseMap[k];
+                    });
+                    setCategoryBalances(bals);
+                };
+
+                const unsubP = onSnapshot(qP, pSnap => {
+                    incomeMap = {};
+                    pSnap.docs.forEach(d => {
+                        const cat = d.data().category;
+                        if(!incomeMap[cat]) incomeMap[cat] = 0;
+                        incomeMap[cat] += (d.data().amountOps || 0);
+                    });
+                    updateBals();
+                });
+
+                const unsubE = onSnapshot(qE, eSnap => {
+                    expenseMap = {};
+                    eSnap.docs.forEach(d => {
+                        const cat = d.data().category;
+                        if(!expenseMap[cat]) expenseMap[cat] = 0;
+                        expenseMap[cat] += (d.data().amountFromOps || 0);
+                    });
+                    updateBals();
+                });
+
+                return () => { unsubP(); unsubE(); };
+            }, [mode]);
+
+            // 3. Month Closing Check
+            React.useEffect(() => {
+                const checkClosed = async () => {
+                    const month = date.slice(0, 7);
+                    const docSnap = await getDoc(doc(db, "closed_months", month));
+                    setIsClosedMonth(docSnap.exists());
+                };
+                checkClosed();
+            }, [date]);
+
+            // 4. Duplicate Check
+            React.useEffect(() => {
+                setPaidUnits([]); 
+                if(mode !== 'income' || !category) return;
+                
+                const [y, m, d] = date.split('-').map(Number);
+                const start = new Date(y, m - 1, 1);
+                const end = new Date(y, m, 0, 23, 59, 59);
+
+                // Use simple query without ranges to avoid index errors, filter in client
+                const q = query(
+                    collection(db, "payments"),
+                    where("category", "==", category),
+                    where("status", "==", "verified")
+                );
+
+                const unsub = onSnapshot(q, (snap) => {
+                    const paid = [];
+                    snap.docs.forEach(doc => {
+                        const data = doc.data();
+                        const paymentDate = data.datePaid.toDate();
+                        if (paymentDate >= start && paymentDate <= end) {
+                            paid.push(`${data.block}-${data.lot}`);
+                        }
+                    });
+                    setPaidUnits(paid);
+                });
+                return () => unsub();
+            }, [category, date, mode]);
+
+            // 5. AUTO-COMPUTE FUND SOURCE (Live)
+            React.useEffect(() => {
+                if(mode !== 'expense' || !fundSource) { setFundBalance(null); return; }
+                
+                const qIn = query(collection(db, "payments"), where("category", "==", fundSource), where("status", "==", "verified"));
+                const qOut = query(collection(db, "expenses"), where("category", "==", fundSource), where("status", "==", "verified"));
+
+                let totalIn = 0;
+                let totalOut = 0;
+
+                const updateLiveBalance = () => setFundBalance(totalIn - totalOut);
+
+                const unsubIn = onSnapshot(qIn, (snapIn) => {
+                    totalIn = 0;
+                    snapIn.docs.forEach(d => totalIn += (d.data().amountOps || 0));
+                    updateLiveBalance();
+                });
+
+                const unsubOut = onSnapshot(qOut, (snapOut) => {
+                    totalOut = 0;
+                    snapOut.docs.forEach(d => totalOut += (d.data().amountFromOps || 0));
+                    updateLiveBalance();
+                });
+
+                return () => { unsubIn(); unsubOut(); };
+            }, [fundSource, mode]);
+
+
+            const lotOptions = React.useMemo(() => {
+                if(!block) return [];
+                const max = SUBDIVISION_MAP[block] || 0;
+                return Array.from({length: max}, (_, i) => {
+                    const val = (i+1).toString();
+                    const isPaid = paidUnits.includes(`${block}-${val}`);
+                    return { 
+                        value: val, 
+                        label: `Lot ${val}`,
+                        disabled: isPaid,
+                        disabledLabel: 'PAID'
+                    };
+                });
+            }, [block, paidUnits]);
+
+            const toggleBatchLot = (l) => {
+                const s = l.toString();
+                if(paidUnits.includes(`${block}-${s}`)) return; 
+                setSelectedLots(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+            };
+
+            const expenseOptions = React.useMemo(() => {
+                return fundSources.map(c => ({
+                    value: c,
+                    label: c,
+                    disabled: (categoryBalances[c] || 0) <= 0,
+                    disabledLabel: '0.00'
+                }));
+            }, [fundSources, categoryBalances]);
+
+            const isGlobalZero = totalFunds <= 0;
+            const currentTotal = parseFloat(amount || 0) * parseInt(qty || 1);
+            const isOverBudget = currentTotal > totalFunds;
+
+            const handleSubmit = async () => {
+                if (isClosedMonth) { showToast("Month is Closed", "error"); return; }
+                if (!amount || parseFloat(amount) <= 0) { showToast("Invalid Amount", "error"); return; }
+                
+                setLoading(true);
+                try {
+                    const baseAmount = parseFloat(amount);
+                    const timestamp = Timestamp.fromDate(new Date(date));
+                    const batchId = Date.now().toString();
+
+                    if (mode === 'income') {
+                        if (!category) throw new Error("Missing Category");
+                        let targets = [];
+                        
+                        if (isBatch) {
+                            if (!block || selectedLots.length === 0) throw new Error("Select Block and at least one Lot");
+                            targets = selectedLots.map(l => ({ block, lot: l }));
+                        } else {
+                            if (!block || !lot) throw new Error("Missing Unit Info");
+                            targets = [{ block, lot }];
+                        }
+
+                        const duplicates = targets.filter(t => paidUnits.includes(`${t.block}-${t.lot}`));
+                        if(duplicates.length > 0) throw new Error("Units already paid. Refreshing...");
+
+                        const opsAmount = baseAmount * (1 - SINKING_FUND_RATE);
+                        const resAmount = baseAmount * SINKING_FUND_RATE;
+                        
+                        const batch = writeBatch(db);
+                        targets.forEach(t => {
+                            const ref = doc(collection(db, "payments"));
+                            batch.set(ref, {
+                                block: t.block, lot: t.lot, amount: baseAmount, amountOps: opsAmount, amountRes: resAmount, category, datePaid: timestamp, status: 'verified', recordedBy: auth.currentUser.uid, recordedAt: Timestamp.now(), batchId: isBatch ? batchId : null
+                            });
+                        });
+                        
+                        await batch.commit();
+                        showToast(`Recorded ${targets.length} Payment(s)`, "success");
+                        if (!isBatch) { setBlock(""); setLot(""); } else { setSelectedLots([]); }
+                    } else {
+                        // EXPENSE LOGIC
+                        if (!expTitle) throw new Error("Missing Description");
+                        if (!fundSource) throw new Error("Missing Fund Source");
+                        if (isOverBudget) throw new Error("Insufficient funds (Global)");
+                        
+                        const totalExpense = baseAmount * qty; 
+                        
+                        const bal = categoryBalances[fundSource] || 0;
+                        
+                        let amountFromOps = 0;
+                        let amountFromRes = 0;
+
+                        if (bal >= totalExpense) {
+                            amountFromOps = totalExpense;
+                        } else {
+                            amountFromOps = Math.max(0, bal);
+                            amountFromRes = totalExpense - amountFromOps;
+                        }
+
+                        await addDoc(collection(db, "expenses"), {
+                            title: expTitle,
+                            category: fundSource,
+                            qty: parseInt(qty),
+                            unitAmount: baseAmount,
+                            amount: totalExpense,
+                            amountFromOps,
+                            amountFromRes,
+                            date: timestamp,
+                            status: 'verified',
+                            recordedBy: auth.currentUser.uid,
+                            fundSource: amountFromRes > 0 ? 'split' : 'ops'
+                        });
+                        
+                        const msg = amountFromRes > 0 ? `Deficit covered: ₱${formatMoney(amountFromRes)} from Sinking Fund` : "Expense Recorded";
+                        showToast(msg, amountFromRes > 0 ? "warning" : "success");
+                        setExpTitle("");
+                        setQty(1);
+                        setFundSource(""); 
+                    }
+                    if(!isBatch) setAmount("");
+                } catch (err) { showToast(err.message || "Error saving", "error"); }
+                setLoading(false);
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center px-1">
+                         <div className="bg-stone-100 p-1 rounded-2xl flex font-bold text-sm w-full">
+                            <button onClick={()=>setMode('income')} className={`flex-1 py-3 rounded-xl transition shadow-sm ${mode==='income' ? 'bg-white text-teal-600 shadow' : 'text-stone-400'}`}>Received (In)</button>
+                            <button onClick={()=>setMode('expense')} className={`flex-1 py-3 rounded-xl transition shadow-sm ${mode==='expense' ? 'bg-white text-orange-500 shadow' : 'text-stone-400'}`}>Paid Out (Out)</button>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-3xl shadow-soft border border-stone-100 animate-slide-up">
+                        <div className="space-y-4">
+                            <div className="relative">
+                                <CustomDatePicker label="Transaction Date" value={date} onChange={setDate} />
+                                {isClosedMonth && <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-xl rounded-tr-xl"><i className="fa-solid fa-lock mr-1"></i> CLOSED</div>}
+                            </div>
+                            
+                            <div className={`space-y-4 transition-opacity ${isClosedMonth ? 'opacity-50 pointer-events-none' : ''}`}>
+                                {mode === 'income' ? (
+                                    <>
+                                        <div className="flex justify-between items-center bg-stone-50 p-2 rounded-xl border border-stone-100">
+                                            <label className="text-xs font-bold text-stone-400 uppercase ml-2">Batch Mode</label>
+                                            <div className="relative inline-block w-12 h-6 mr-1 align-middle select-none transition duration-200 ease-in">
+                                                <input type="checkbox" name="toggle" id="toggle" className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-stone-200" checked={isBatch} onChange={()=>setIsBatch(!isBatch)}/>
+                                                <label htmlFor="toggle" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer transition-colors ${isBatch ? 'bg-teal-500' : 'bg-stone-200'}`}></label>
+                                            </div>
+                                        </div>
+                                        
+                                        <CustomSelect label="Fund Source" value={category} onChange={setCategory} options={fundSources.map(c=>({value:c,label:c}))} placeholder="Select Fund Source" />
+
+                                        {isBatch ? (
+                                            <div className="space-y-3">
+                                                <CustomSelect label="Block" value={block} onChange={(v)=>{setBlock(v); setSelectedLots([])}} options={Object.keys(SUBDIVISION_MAP).map(k=>({value:k, label:`Blk ${k}`}))} />
+                                                {block ? (
+                                                    <div className="p-3 bg-stone-50 rounded-xl border border-stone-100">
+                                                        <div className="flex justify-between items-end mb-2"><span className="text-xs font-bold text-stone-400 uppercase">Select Lots</span><span className="text-xs font-bold text-teal-600">{selectedLots.length} Selected</span></div>
+                                                        <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto scroll-area">
+                                                            {Array.from({length: SUBDIVISION_MAP[block]}).map((_, i) => { 
+                                                                const n = i + 1; 
+                                                                const isSel = selectedLots.includes(n.toString());
+                                                                const isPaid = paidUnits.includes(`${block}-${n}`);
+                                                                return (
+                                                                    <button 
+                                                                        key={n} 
+                                                                        onClick={()=>toggleBatchLot(n)} 
+                                                                        disabled={isPaid}
+                                                                        className={`h-8 w-full rounded text-xs font-bold transition flex items-center justify-center 
+                                                                            ${isPaid ? 'bg-stone-200 text-stone-400 cursor-not-allowed opacity-50' : 
+                                                                              isSel ? 'bg-teal-500 text-white shadow-md' : 'bg-white text-stone-400 border border-stone-100'}`}
+                                                                    >
+                                                                        {n}
+                                                                    </button>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                ) : <div className="p-4 text-center text-sm text-stone-400 bg-stone-50 rounded-xl border border-stone-100">Select a Block to view lots</div>}
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <CustomSelect label="Block" value={block} onChange={(v)=>{setBlock(v);setLot("")}} options={Object.keys(SUBDIVISION_MAP).map(k=>({value:k, label:`Blk ${k}`}))} />
+                                                <CustomSelect label="Lot" value={lot} onChange={setLot} disabled={!block} options={lotOptions} placeholder="-" />
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className={isGlobalZero ? 'opacity-50 pointer-events-none' : ''}>
+                                        <div>
+                                            <label className="block text-xs font-bold text-stone-400 uppercase mb-1 ml-1">Description</label>
+                                            <input className="w-full h-12 bg-stone-100 rounded-xl px-4 font-semibold text-stone-700 outline-none focus:bg-white focus:border focus:border-orange-500 transition" placeholder="e.g. Guard Salary" value={expTitle} onChange={e=>setExpTitle(e.target.value)} />
+                                        </div>
+                                        <div className="mt-4">
+                                            <CustomSelect label="Fund Source" value={fundSource} onChange={setFundSource} options={expenseOptions} placeholder="Select Fund Source" />
+                                            {fundSource && (
+                                                <div className="text-right mt-1">
+                                                    <span className="text-[10px] uppercase font-bold text-stone-400">Available: </span>
+                                                    <span className={`text-xs font-bold ${fundBalance < 0 ? 'text-red-500' : 'text-teal-600'}`}>
+                                                        {fundBalance !== null ? formatMoney(fundBalance) : '...'}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className={`flex gap-3 ${(mode==='expense' && isGlobalZero) ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    {mode === 'expense' && (
+                                        <div className="w-1/3">
+                                            <label className="block text-xs font-bold text-stone-400 uppercase mb-1 ml-1">Qty</label>
+                                            <input type="number" className="w-full h-12 bg-stone-100 rounded-xl px-4 font-bold text-lg text-center outline-none focus:bg-white focus:border border border-transparent focus:border-orange-500 transition" placeholder="1" value={qty} onChange={e=>setQty(e.target.value)} />
+                                        </div>
+                                    )}
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-bold text-stone-400 uppercase mb-1 ml-1">{mode==='income' && isBatch ? 'Amount Per Unit' : 'Unit Amount'}</label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-3 text-stone-400 font-bold">₱</span>
+                                            <input type="number" className={`w-full h-12 bg-stone-100 rounded-xl pl-8 pr-4 font-bold text-lg outline-none focus:bg-white focus:border transition ${mode==='income'?'text-teal-600 focus:border-teal-500':'text-orange-500 focus:border-orange-500'}`} placeholder="0.00" value={amount} onChange={e=>setAmount(e.target.value)} />
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {mode === 'expense' && amount && (
+                                    <div className="text-right text-xs font-bold text-stone-400">
+                                        Total: {formatMoney(currentTotal)}
+                                        {isOverBudget && <span className="text-red-500 ml-1">(Exceeds Funds)</span>}
+                                    </div>
+                                )}
+
+                                <button onClick={handleSubmit} disabled={loading || (mode==='expense' && (isGlobalZero || isOverBudget))} className={`w-full h-14 rounded-xl font-bold text-white shadow-lg mt-2 transition active:scale-95 disabled:opacity-50 disabled:active:scale-100 ${mode==='income'?'bg-teal-600 shadow-teal-200':'bg-stone-800 shadow-stone-300'}`}>
+                                    {loading ? <i className="fa-solid fa-circle-notch fa-spin"></i> : (mode==='income' ? (isBatch ? `Batch Record (${selectedLots.length})` : 'Record Collection') : 'Record Expense')}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const LedgerView = ({ showToast }) => {
+            const [txs, setTxs] = React.useState([]);
+
+            React.useEffect(() => {
+                const unsubPay = onSnapshot(query(collection(db,"payments"), orderBy("datePaid", "desc")), s => {
+                    const p = s.docs.map(d => ({id:d.id, type:'in', ...d.data(), date: d.data().datePaid}));
+                    setTxs(prev => { const exps = prev.filter(x => x.type === 'out'); return [...exps, ...p].sort((a,b) => b.date.seconds - a.date.seconds); });
+                });
+                const unsubExp = onSnapshot(query(collection(db,"expenses"), orderBy("date", "desc")), s => {
+                    const e = s.docs.map(d => ({id:d.id, type:'out', ...d.data()}));
+                    setTxs(prev => { const pays = prev.filter(x => x.type === 'in'); return [...pays, ...e].sort((a,b) => b.date.seconds - a.date.seconds); });
+                });
+                return () => { unsubPay(); unsubExp(); };
+            }, []);
+
+            return (
+                <div className="bg-white rounded-3xl shadow-soft border border-stone-100 overflow-hidden min-h-[50vh] relative">
+                    <div className="bg-stone-50 px-6 py-4 border-b border-stone-100 flex justify-between items-center sticky top-0 z-10">
+                        <div>
+                            <h3 className="font-bold text-stone-800">General Ledger</h3>
+                            <p className="text-xs text-stone-400">All recorded financial events</p>
+                        </div>
+                    </div>
+                    <div className="divide-y divide-stone-100 pb-20">
+                        {txs.map(tx => {
+                            const isVoid = tx.status === 'void';
+                            return (
+                                <div key={tx.id} className={`p-4 px-6 flex justify-between items-center transition-all ${isVoid ? 'void-row' : ''}`}>
+                                    <div className="flex items-center gap-4">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm ${tx.type==='in' ? 'bg-teal-50 text-teal-600' : 'bg-orange-50 text-orange-500'} ${isVoid ? 'grayscale opacity-50' : ''}`}>
+                                            <i className={`fa-solid ${tx.type==='in' ? 'fa-arrow-down' : 'fa-arrow-up'}`}></i>
+                                        </div>
+                                        <div>
+                                            <div className={`font-bold text-stone-700 text-sm ${isVoid ? 'void-text' : ''}`}>
+                                                {isVoid && <span className="text-red-500 font-black mr-2 text-xs no-underline decoration-0 inline-block">VOIDED</span>}
+                                                {tx.type==='in' ? `Unit ${tx.block}-${tx.lot} (${tx.category})` : tx.title}
+                                                {tx.batchId && <span className="ml-2 text-[10px] bg-stone-100 px-1 rounded text-stone-400 font-normal no-underline">BATCH</span>}
+                                                {tx.fundSource === 'split' && <span className="ml-2 text-[10px] bg-orange-100 text-orange-600 px-1 rounded font-bold no-underline">DEFICIT</span>}
+                                            </div>
+                                            <div className="flex items-center gap-1 text-xs text-stone-400">
+                                                <span>{formatDate(tx.date.toDate())}</span>
+                                                {tx.type==='out' && tx.qty > 1 && <span className="font-bold text-stone-500 ml-1">x{tx.qty}</span>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className={`font-bold ${tx.type==='in' ? 'text-teal-600' : 'text-stone-800'} ${isVoid ? 'void-text' : ''}`}>
+                                            {tx.type==='out' && '- '}{formatMoney(tx.amount)}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {txs.length === 0 && <div className="p-10 text-center text-stone-400">No records found.</div>}
+                    </div>
+                </div>
+            );
+        };
+
+        const BudgetReport = ({ showToast, isAdmin }) => {
+            const [month, setMonth] = React.useState(new Date().toISOString().slice(0, 7));
+            const [report, setReport] = React.useState([]);
+            const [loading, setLoading] = React.useState(true);
+            const [isClosed, setIsClosed] = React.useState(false);
+            const [confirmCloseStage, setConfirmCloseStage] = React.useState(0); 
+            const [password, setPassword] = React.useState("");
+            const [closing, setClosing] = React.useState(false);
+
+            const fetchReport = React.useCallback(async () => {
+                setLoading(true);
+                const closeSnap = await getDoc(doc(db, "closed_months", month));
+                setIsClosed(closeSnap.exists());
+
+                const pSnap = await getDocs(query(collection(db, "payments"), where("status", "==", "verified")));
+                const eSnap = await getDocs(query(collection(db, "expenses"), where("status", "==", "verified")));
+                
+                const data = {};
+
+                pSnap.forEach(d => {
+                    const p = d.data();
+                    const cat = p.category || 'Uncategorized';
+                    if(!data[cat]) data[cat] = { collected: 0, spent: 0, balance: 0, sfUsed: 0, sfIn: 0, expenses: [] };
+                    
+                    const pMonth = p.datePaid.toDate().toISOString().slice(0, 7);
+                    if (pMonth === month) {
+                        data[cat].collected += (p.amountOps || 0);
+                        data[cat].sfIn += (p.amountRes || 0);
+                    }
+                    data[cat].balance += (p.amountOps || 0);
+                });
+
+                eSnap.forEach(d => {
+                    const e = d.data();
+                    const cat = e.category || 'Uncategorized';
+                    if(!data[cat]) data[cat] = { collected: 0, spent: 0, balance: 0, sfUsed: 0, sfIn: 0, expenses: [] };
+                    
+                    const eMonth = e.date.toDate().toISOString().slice(0, 7);
+                    if (eMonth === month) {
+                        data[cat].spent += (e.amount || 0); 
+                        data[cat].sfUsed += (e.amountFromRes || 0); 
+                        // Add specific expense details to array for individual accounting
+                        data[cat].expenses.push({
+                            title: e.title,
+                            qty: e.qty || 1,
+                            amount: e.amount,
+                            fundSource: e.fundSource
+                        });
+                    }
+                    data[cat].balance -= (e.amountFromOps || 0);
+                });
+
+                setReport(Object.entries(data).map(([k,v]) => ({category: k, ...v})));
+                setLoading(false);
+            }, [month]);
+
+            React.useEffect(() => { fetchReport(); }, [fetchReport]);
+
+            const executeClose = async (e) => {
+                e.preventDefault();
+                setClosing(true);
+                try {
+                    // Re-authenticate to confirm password
+                    const credential = EmailAuthProvider.credential(auth.currentUser.email, password);
+                    await reauthenticateWithCredential(auth.currentUser, credential);
+                    
+                    // If successful, proceed to close
+                    await setDoc(doc(db, "closed_months", month), { closedAt: Timestamp.now(), closedBy: auth.currentUser.uid });
+                    setIsClosed(true);
+                    setConfirmCloseStage(0);
+                    setPassword("");
+                    showToast("Month Closed Successfully", "success");
+                } catch(e) { 
+                    console.error(e);
+                    showToast(e.code === 'auth/invalid-credential' ? "Incorrect Password" : "Error closing month", "error"); 
+                } finally {
+                    setClosing(false);
+                }
+            };
+
+            const ModalContent = () => {
+                switch(confirmCloseStage) {
+                    case 1: // Initial Warning
+                        return (
+                             <div className="p-6 text-center">
+                                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4"><i className="fa-solid fa-question text-3xl text-orange-500"></i></div>
+                                <h3 className="font-bold text-lg mb-2 text-stone-800">Close {month}?</h3>
+                                <p className="text-stone-500 text-sm mb-6">Are you sure you want to finalize the budget report for this month?</p>
+                                <button onClick={() => setConfirmCloseStage(2)} className="w-full py-4 bg-stone-800 text-white rounded-xl font-bold">Yes, Proceed</button>
+                            </div>
+                        );
+                    case 2: // Educational / Logic Explanation
+                        return (
+                             <div className="p-6 text-center">
+                                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4"><i className="fa-solid fa-info text-3xl text-blue-500"></i></div>
+                                <h3 className="font-bold text-lg mb-2 text-stone-800">How this works</h3>
+                                <p className="text-stone-500 text-sm mb-4 text-left p-3 bg-stone-50 rounded-xl">
+                                    Closing <strong>{month}</strong> locks records <u>only</u> for this specific month. 
+                                    <br/><br/>
+                                    <strong>Future months remain open.</strong> When the date changes to next month (or if you manually select a future date), the system will automatically allow new entries.
+                                </p>
+                                <button onClick={() => setConfirmCloseStage(3)} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200">I Understand</button>
+                            </div>
+                        );
+                    case 3: // Final Warning
+                        return (
+                             <div className="p-6 text-center">
+                                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><i className="fa-solid fa-triangle-exclamation text-3xl text-red-500"></i></div>
+                                <h3 className="font-bold text-lg mb-2 text-stone-800">Final Warning</h3>
+                                <p className="text-stone-500 text-sm mb-6">This action is <b>IRREVERSIBLE</b>. You cannot re-open this month once closed.</p>
+                                <button onClick={() => setConfirmCloseStage(4)} className="w-full py-4 bg-red-500 text-white rounded-xl font-bold shadow-lg shadow-red-200">Continue</button>
+                            </div>
+                        );
+                    case 4: // Password Protection
+                        return (
+                             <div className="p-6 text-center">
+                                <div className="w-16 h-16 bg-stone-800 rounded-full flex items-center justify-center mx-auto mb-4"><i className="fa-solid fa-lock text-3xl text-white"></i></div>
+                                <h3 className="font-bold text-lg mb-2 text-stone-800">Security Check</h3>
+                                <p className="text-stone-500 text-sm mb-4">Enter your admin password to confirm.</p>
+                                <form onSubmit={executeClose}>
+                                    <input 
+                                        type="password" 
+                                        value={password} 
+                                        onChange={e => setPassword(e.target.value)} 
+                                        placeholder="Admin Password" 
+                                        className="w-full h-12 bg-stone-100 rounded-xl px-4 font-bold text-center outline-none focus:ring-2 focus:ring-stone-500 mb-4"
+                                        autoFocus
+                                    />
+                                    <button type="submit" disabled={!password || closing} className="w-full py-4 bg-stone-800 text-white rounded-xl font-bold disabled:opacity-50">
+                                        {closing ? <i className="fa-solid fa-circle-notch fa-spin"></i> : "CONFIRM CLOSE"}
+                                    </button>
+                                </form>
+                            </div>
+                        );
+                    default: return null;
+                }
+            };
+
+            return (
+                <div className="space-y-4 animate-fade-in">
+                    {confirmCloseStage > 0 && (
+                        <Modal title={confirmCloseStage === 4 ? "Security" : "Confirm Closing"} onClose={() => {setConfirmCloseStage(0); setPassword("");}}>
+                            <ModalContent />
+                        </Modal>
+                    )}
+
+                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-stone-800">Budget Report</h3>
+                            {isClosed && <span className="bg-red-100 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded"><i className="fa-solid fa-lock mr-1"></i>CLOSED</span>}
+                        </div>
+                        <input type="month" value={month} onChange={e=>setMonth(e.target.value)} className="bg-stone-100 rounded-lg px-2 py-1 text-xs font-bold text-stone-600 outline-none" />
+                    </div>
+                    
+                    <div className="space-y-3">
+                        {loading ? <div className="p-8 text-center text-stone-300"><i className="fa-solid fa-circle-notch fa-spin"></i></div> : report.length === 0 ? <div className="p-8 text-center text-sm text-stone-400">No data available</div> : 
+                            report.map((r,i) => (
+                                <div key={i} className="p-4 bg-white rounded-2xl shadow-soft border border-stone-50">
+                                    <div className="flex justify-between items-center mb-3 pb-2 border-b border-stone-50">
+                                        <span className="font-bold text-stone-700 text-sm">{r.category}</span>
+                                        <span className="text-[10px] font-bold bg-stone-100 text-stone-500 px-2 py-1 rounded">Bal: {formatMoney(r.balance)}</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3 text-xs mb-3">
+                                        <div className="bg-stone-50 p-2 rounded-lg">
+                                            <div className="font-bold text-stone-400 mb-1 uppercase text-[9px] flex items-center">
+                                                <i className="fa-solid fa-money-bill-wave mr-1.5"></i> Operations
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-teal-600 font-medium">+{r.collected > 0 ? formatMoney(r.collected) : '0'}</span>
+                                                <span className="text-orange-500 font-medium">-{r.spent > 0 ? formatMoney(r.spent) : '0'}</span>
+                                            </div>
+                                        </div>
+                                        <div className="bg-stone-50 p-2 rounded-lg">
+                                            <div className="font-bold text-stone-400 mb-1 uppercase text-[9px] flex items-center">
+                                                <i className="fa-solid fa-piggy-bank mr-1.5"></i> Sinking Fund
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-blue-500 font-medium">+{r.sfIn > 0 ? formatMoney(r.sfIn) : '0'}</span>
+                                                <span className="text-orange-500 font-medium">-{r.sfUsed > 0 ? formatMoney(r.sfUsed) : '0'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Individual Expenses List */}
+                                    {r.expenses && r.expenses.length > 0 && (
+                                        <div className="bg-stone-50 rounded-xl p-3 border border-stone-100">
+                                            <div className="text-[9px] font-bold text-stone-400 uppercase mb-2 tracking-wider">Itemized Expenses</div>
+                                            <div className="space-y-2">
+                                                {r.expenses.map((exp, k) => (
+                                                    <div key={k} className="flex justify-between items-start text-xs border-b border-stone-200/50 last:border-0 pb-1 last:pb-0">
+                                                        <div className="text-stone-600">
+                                                            <span className="font-bold">{exp.title}</span>
+                                                            {exp.qty > 1 && <span className="text-stone-400 ml-1">x{exp.qty}</span>}
+                                                            {exp.fundSource === 'split' && <span className="ml-2 text-[8px] bg-orange-100 text-orange-600 px-1 rounded font-bold">SPLIT</span>}
+                                                        </div>
+                                                        <div className="font-bold text-stone-700">{formatMoney(exp.amount)}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))
+                        }
+                    </div>
+                    {isAdmin && !isClosed && (
+                        <button onClick={() => setConfirmCloseStage(1)} className="w-full py-3 rounded-xl border-2 border-stone-200 text-stone-400 font-bold text-xs hover:border-red-200 hover:text-red-500 transition">
+                            Close This Month
+                        </button>
+                    )}
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [user, setUser] = React.useState(null);
+            const [loading, setLoading] = React.useState(true);
+            const [verifying, setVerifying] = React.useState(false);
+            const [loggingIn, setLoggingIn] = React.useState(false); 
+            const [accessCode, setAccessCode] = React.useState("");
+            const [authorized, setAuthorized] = React.useState(false); 
+            const [subView, setSubView] = React.useState("dashboard"); 
+            const [toast, setToast] = React.useState(null);
+            const [showPass, setShowPass] = React.useState(false); 
+            const [showSettings, setShowSettings] = React.useState(false);
+            const [menuOpen, setMenuOpen] = React.useState(false); 
+            const [funds, setFunds] = React.useState({ ops: 0, res: 0 });
+
+            React.useEffect(() => { 
+                const unsub = onAuthStateChanged(auth, (u) => { 
+                    setUser(u); 
+                    setLoading(false); 
+                    if(u) { setAuthorized(true); setSubView('dashboard'); } // Corrected: changed setView('admin') to setSubView('dashboard')
+                    else { setLoggingIn(false); } 
+                }); 
+                return () => unsub(); 
+            }, []);
+
+            React.useEffect(() => {
+                if(!authorized) return;
+                const unsubP = onSnapshot(query(collection(db, "payments"), where("status", "==", "verified")), s => {
+                    let incomeOps = 0, incomeRes = 0;
+                    s.docs.forEach(d => { incomeOps += d.data().amountOps || 0; incomeRes += d.data().amountRes || 0; });
+                    onSnapshot(query(collection(db, "expenses"), where("status", "==", "verified")), expSnap => {
+                        let expOps = 0, expRes = 0;
+                        expSnap.docs.forEach(d => { expOps += d.data().amountFromOps || 0; expRes += d.data().amountFromRes || 0; });
+                        setFunds({ ops: incomeOps - expOps, res: incomeRes - expRes });
+                    });
+                });
+                return () => {}; 
+            }, [authorized]);
+
+            const totalCash = funds.ops + funds.res;
+            const opsPct = totalCash > 0 ? (funds.ops / totalCash) * 100 : 90; 
+            const pieStyle = { background: `conic-gradient(#0d9488 ${opsPct}%, #f97316 0)` };
+
+            const verifyAccessCode = async () => {
+                if (!accessCode.trim()) return;
+                setVerifying(true);
+                try {
+                    const codeRef = doc(db, "community_codes", accessCode.trim());
+                    const snap = await getDoc(codeRef);
+                    if (snap.exists() && snap.data().active === true) { setAuthorized(true); setSubView("dashboard"); } 
+                    else { setToast({message: "Invalid Code", type: "error"}); }
+                } catch (err) { setToast({message: "Connection Error", type: "error"}); } 
+                finally { setVerifying(false); }
+            };
+
+            const handleAdminLogin = async (e) => {
+                e.preventDefault();
+                const rawInput = e.target.email.value.trim();
+                const password = e.target.pass.value;
+                setLoggingIn(true);
+                const email = rawInput.toLowerCase() === 'admin' ? 'admin@sonera.com' : rawInput;
+                try { await signInWithEmailAndPassword(auth, email, password); } catch(err) { setToast({message: "Login Failed", type: "error"}); setLoggingIn(false); }
+            };
+
+            const showToast = (m, t) => setToast({message: m, type: t});
+
+            if (loading) return null;
+
+            if (!authorized && !user) {
+                return (
+                    <div 
+                        className="h-full flex flex-col items-center justify-center p-6 bg-stone-900 relative bg-cover bg-center bg-no-repeat"
+                        style={{ backgroundImage: "url('./background.png')" }}
+                    >
+                        {/* Gradient Overlay for opacity effect */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-stone-900/80 via-stone-900/60 to-stone-900/90 backdrop-blur-[2px]"></div>
+
+                        {toast && <Toast {...toast} onClose={()=>setToast(null)} />}
+                        
+                        <div className="relative z-10 w-full max-w-sm bg-white/50 p-8 rounded-3xl shadow-2xl border border-stone-100 animate-scale-in">
+                            <div className="text-center mb-8">
+                                <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+                                     <img src="favicon.png" className="w-full h-full object-contain" alt="Logo" 
+                                        onError={(e) => {
+                                            e.target.style.display = 'none';
+                                            const icon = e.target.nextElementSibling;
+                                            if (icon) {
+                                                icon.classList.remove('hidden');
+                                            }
+                                     }} 
+                                     />
+                                     <i className="fa-solid fa-building-columns text-teal-600 text-6xl hidden"></i>
+                                </div>
+                                <h1 className="text-4xl font-extrabold text-teal-900">BlockSync</h1>
+                                <p className="text-stone-900 text-sm">HOA Accounting & Transparency Portal</p>
+                            </div>
+                            <div className="space-y-6">
+                                <div><label className="text-xs font-bold text-stone-800 uppercase ml-1">Resident Access</label><form onSubmit={(e) => {e.preventDefault(); verifyAccessCode();}} className="flex gap-2"><input type="text" placeholder="ENTER ACCESS CODE" value={accessCode} onChange={e => setAccessCode(e.target.value.toUpperCase())} className="flex-1 h-12 bg-stone-100 rounded-xl px-4 font-bold text-center tracking-widest outline-none focus:ring-2 focus:ring-teal-500 transition placeholder:font-medium placeholder:tracking-normal placeholder:normal-case" disabled={verifying} /><button type="submit" disabled={verifying} className="w-12 h-12 bg-teal-800 text-white rounded-xl shadow-lg flex items-center justify-center active:scale-95 transition disabled:opacity-50">{verifying ? <i className="fa-solid fa-circle-notch fa-spin"></i> : <i className="fa-solid fa-arrow-right"></i>}</button></form></div>
+                                <div className="relative flex py-2 items-center"><div className="flex-grow border-t border-stone-100"></div><span className="flex-shrink mx-4 text-stone-800 text-xs font-bold uppercase">Or Admin</span><div className="flex-grow border-t border-stone-100"></div></div>
+                                <form onSubmit={handleAdminLogin} className="space-y-3"><input name="email" type="text" placeholder="Username" autoCapitalize="off" className="w-full h-12 bg-stone-50 border border-stone-100 rounded-xl px-4 text-sm font-medium outline-none focus:border-stone-400 transition" required /><div className="relative"><input name="pass" type={showPass ? "text" : "password"} placeholder="Password" className="w-full h-12 bg-stone-50 border border-stone-100 rounded-xl px-4 text-sm font-medium outline-none focus:border-stone-400 transition pr-10" required /><button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-3 text-teal-800 hover:text-stone-600"><i className={`fa-solid ${showPass ? 'fa-eye-slash' : 'fa-eye'}`}></i></button></div><button type="submit" disabled={loggingIn} className="w-full h-12 bg-teal-800 text-white rounded-xl font-bold shadow-lg hover:bg-stone-900 transition text-sm disabled:opacity-70">{loggingIn ? <i className="fa-solid fa-circle-notch fa-spin"></i> : 'Admin Dashboard'}</button></form>
+                            </div>
+                        </div>
+                        <p className="relative z-10 mt-8 text-xs text-stone-400 font-medium bg-stone-900/50 px-3 py-1 rounded-full border border-white/10 backdrop-blur-md">Secured Ledger v2.0</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="h-full flex flex-col bg-stone-50">
+                    {toast && <Toast {...toast} onClose={()=>setToast(null)} />}
+                    {showSettings && <CategoryManager onClose={()=>setShowSettings(false)} showToast={showToast} />}
+                    
+                    <header className="bg-white px-6 py-4 flex justify-between items-center shadow-sm z-20 sticky top-0">
+                        <div className="flex flex-col"><h1 className="font-extrabold text-lg text-stone-800 tracking-tight leading-none flex items-center">
+                            <img src="logo.png" className="w-6 h-6 object-contain mr-2" alt="Logo" />
+                            {user ? 'Admin Console' : 'Resident View'}
+                        </h1>
+                        {/* Adjusted margin-left (ml-8) slightly to align with text start */}
+                        <span className="text-[10px] text-stone-400 font-medium ml-8">Secured Ledger</span>
+                    </div>
+                        <div className="relative">
+                            <button onClick={()=>setMenuOpen(!menuOpen)} className="w-10 h-10 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center transition"><i className="fa-solid fa-bars"></i></button>
+                            {menuOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-30 bg-transparent" onClick={()=>setMenuOpen(false)}></div>
+                                    <div className="absolute top-12 right-0 w-48 bg-white rounded-2xl shadow-xl border border-stone-100 z-40 p-2 animate-scale-in">
+                                        <button onClick={()=>{setSubView('dashboard'); setMenuOpen(false);}} className="w-full text-left px-4 py-3 rounded-xl hover:bg-stone-50 text-sm font-medium text-stone-700 flex items-center gap-3"><i className="fa-solid fa-chart-pie w-4"></i> Dashboard</button>
+                                        <button onClick={()=>{setSubView('report'); setMenuOpen(false);}} className="w-full text-left px-4 py-3 rounded-xl hover:bg-stone-50 text-sm font-medium text-stone-700 flex items-center gap-3"><i className="fa-solid fa-file-invoice-dollar w-4"></i> Budget Report</button>
+                                        {user ? (
+                                            <>
+                                                <button onClick={()=>{setShowSettings(true); setMenuOpen(false);}} className="w-full text-left px-4 py-3 rounded-xl hover:bg-stone-50 text-sm font-medium text-stone-700 flex items-center gap-3"><i className="fa-solid fa-gear w-4"></i> Categories</button>
+                                                <div className="h-px bg-stone-100 my-1"></div>
+                                                <button onClick={()=>signOut(auth)} className="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 text-sm font-bold text-red-500 flex items-center gap-3"><i className="fa-solid fa-power-off w-4"></i> Logout</button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="h-px bg-stone-100 my-1"></div>
+                                                <button onClick={()=>{setAuthorized(false); setUser(null); setMenuOpen(false);}} className="w-full text-left px-4 py-3 rounded-xl hover:bg-red-50 text-sm font-bold text-red-500 flex items-center gap-3"><i className="fa-solid fa-right-from-bracket w-4"></i> Exit View</button>
+                                            </>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </header>
+
+                    <main className="flex-1 overflow-y-auto scroll-area p-4 pb-0">
+                        {subView === 'report' && (
+                            <div>
+                                <button onClick={()=>setSubView('dashboard')} className="mb-4 text-sm font-bold text-stone-400 flex items-center gap-2"><i className="fa-solid fa-arrow-left"></i> Back to Dashboard</button>
+                                <BudgetReport showToast={showToast} isAdmin={!!user} />
+                            </div>
+                        )}
+
+                        {subView === 'dashboard' && (
+                            <>
+                                {/* RESIDENT VIEW */}
+                                {!user && (
+                                    <div className="space-y-6 animate-fade-in">
+                                        <div className="bg-gradient-to-br from-stone-800 to-stone-900 rounded-3xl p-6 text-white shadow-xl">
+                                            <div className="flex items-center gap-2 mb-2 opacity-80"><i className="fa-solid fa-wallet text-sm"></i><span className="text-xs font-bold uppercase tracking-wider">Net Cash Position</span></div>
+                                            <div className="text-3xl font-bold mb-4">{formatMoney(funds.ops + funds.res)}</div>
+                                            <div className="flex gap-4">
+                                                <div className="flex-1 bg-white/10 rounded-xl p-3 backdrop-blur-sm"><div className="text-[10px] uppercase font-bold opacity-60">Operations</div><div className="font-semibold">{formatMoney(funds.ops)}</div></div>
+                                                <div className="flex-1 bg-orange-500/20 rounded-xl p-3 border border-orange-500/30 backdrop-blur-sm"><div className="text-[10px] uppercase font-bold text-orange-300">Sinking Fund</div><div className="font-semibold text-orange-200">{formatMoney(funds.res)}</div></div>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <button onClick={()=>setSubView('checker')} className="bg-white p-6 rounded-3xl shadow-soft border border-stone-100 text-left hover:scale-[1.02] transition"><div className="w-10 h-10 bg-teal-50 rounded-full flex items-center justify-center text-teal-600 mb-3"><i className="fa-solid fa-house-chimney"></i></div><div className="font-bold text-stone-700">Check Unit</div><div className="text-xs text-stone-400">View Status</div></button>
+                                            <button onClick={()=>setSubView('report')} className="bg-white p-6 rounded-3xl shadow-soft border border-stone-100 text-left hover:scale-[1.02] transition"><div className="w-10 h-10 bg-stone-100 rounded-full flex items-center justify-center text-stone-600 mb-3"><i className="fa-solid fa-file-invoice-dollar"></i></div><div className="font-bold text-stone-700">Budget Report</div><div className="text-xs text-stone-400">Transparency</div></button>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-3xl shadow-soft border border-stone-100">
+                                            <h3 className="font-bold text-stone-800 mb-4">Fund Allocation</h3>
+                                            <div className="flex items-center gap-6">
+                                                <div className="relative w-24 h-24 rounded-full border-4 border-stone-50 flex items-center justify-center shadow-inner" style={pieStyle}><div className="absolute w-16 h-16 bg-white rounded-full flex items-center justify-center"><span className="font-bold text-[10px] text-stone-400">LIVE</span></div></div>
+                                                <div className="space-y-2 text-sm"><div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-teal-500"></div><span className="text-stone-600">Operations ({Math.round(opsPct)}%)</span></div><div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-orange-500"></div><span className="text-stone-600">Sinking Fund ({100 - Math.round(opsPct)}%)</span></div></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ADMIN VIEW */}
+                                {user && (
+                                    <div className="space-y-6 animate-slide-up">
+                                        <TransactionRecorder showToast={showToast} setShowSettings={setShowSettings} totalFunds={funds.ops + funds.res} />
+                                        <div className="mt-8">
+                                            <LedgerView showToast={showToast} />
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {subView === 'checker' && (
+                            <div>
+                                <button onClick={()=>setSubView('dashboard')} className="mb-4 text-sm font-bold text-stone-400 flex items-center gap-2"><i className="fa-solid fa-arrow-left"></i> Back to Dashboard</button>
+                                <ResidentUnitChecker />
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById("root"));
+        root.render(<App />);
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                // Wrap in try-catch to prevent errors in environments where SW is restricted (like blob/data URLs)
+                try {
+                    navigator.serviceWorker.register('./sw.js')
+                        .catch(err => console.log('SW registration skipped (preview mode):', err));
+                } catch (e) {
+                    console.log('SW not supported in this environment');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

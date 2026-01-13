@@ -53,8 +53,9 @@
             flex-direction: column; 
             overflow: hidden; 
             
-            /* IOS SAFE AREA SUPPORT - Top only, ignore bottom for full screen */
+            /* IOS SAFE AREA SUPPORT - Top only. Bottom is explicitly 0 to cover home slider area. */
             padding-top: env(safe-area-inset-top);
+            padding-bottom: 0 !important; 
         }
 
         /* UTILITIES */
@@ -1233,7 +1234,7 @@
                         </div>
                     </header>
 
-                    <main className="flex-1 overflow-y-auto scroll-area p-4">
+                    <main className="flex-1 overflow-y-auto scroll-area p-4 pb-0">
                         {subView === 'report' && (
                             <div>
                                 <button onClick={()=>setSubView('dashboard')} className="mb-4 text-sm font-bold text-stone-400 flex items-center gap-2"><i className="fa-solid fa-arrow-left"></i> Back to Dashboard</button>
